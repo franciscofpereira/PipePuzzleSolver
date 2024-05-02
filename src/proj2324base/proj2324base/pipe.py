@@ -69,7 +69,6 @@ class Board:
         return (vertical_up, vertical_down)
 
 
-    
     def adjacent_horizontal_values(self, row: int, col: int) -> (str, str):
         """ Devolve os valores imediatamente à esquerda e à direita,
         respectivamente. """
@@ -87,8 +86,20 @@ class Board:
     def get_value(self, row: int, col: int):
         """ Devolve o valor nas coordenadas dadas como argumento """
         return self.board[row][col]
-
-
+    
+    def print_board(self):
+        
+        """ Imprime a grelha do tabuleiro """
+        row = 0; col = 0
+        for row in range (0,board.row_count):
+            for col in range(0,board.col_count):
+                print(f"{self.board[row][col]} ", end='')
+                col += 1  
+                if col == board.col_count:
+                    col = 0
+                    print("")
+        row +=1
+      
 
 class PipeMania(Problem):
     def __init__(self, board: Board):
@@ -135,11 +146,11 @@ if __name__ == "__main__":
 
 
 board = Board.parse_instance() 
-print(board.adjacent_vertical_values(0, 0))
-print(board.adjacent_horizontal_values(0, 0))
-print(board.adjacent_vertical_values(1, 1))
-print(board.adjacent_horizontal_values(1, 1))
-
+#print(board.adjacent_vertical_values(0, 0))
+#print(board.adjacent_horizontal_values(0, 0))
+#print(board.adjacent_vertical_values(1, 1))
+#print(board.adjacent_horizontal_values(1, 1))
+board.print_board()
 #my_problem = PipeMania(board)
 
 #result = depth_first_tree_search(my_problem)
