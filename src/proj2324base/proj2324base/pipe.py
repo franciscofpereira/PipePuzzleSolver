@@ -28,7 +28,7 @@ class PipeManiaState:
 
     def __lt__(self, other):
         return self.id < other.id
-
+    
     # TODO: outros metodos da classe
 
 
@@ -83,6 +83,11 @@ class Board:
             horizontal_right = self.board[row][col + 1]
 
         return (horizontal_left, horizontal_right)
+    
+    def get_value(self, row: int, col: int):
+        """ Devolve o valor nas coordenadas dadas como argumento """
+        return self.board[row][col]
+
 
 
 class PipeMania(Problem):
@@ -134,3 +139,7 @@ print(board.adjacent_vertical_values(0, 0))
 print(board.adjacent_horizontal_values(0, 0))
 print(board.adjacent_vertical_values(1, 1))
 print(board.adjacent_horizontal_values(1, 1))
+
+#my_problem = PipeMania(board)
+
+#result = depth_first_tree_search(my_problem)
