@@ -119,6 +119,28 @@ class Board:
         
         """ Retorna True se o pipe estiver conectado a todos os pipes adjacentes, falso caso contrário """
         #TODO
+
+        pipe = self.translate_pipe(row, col)
+        
+        pipe_below = self.translate_pipe(row+1, col) if row+1 >=0 else None
+        pipe_above = self.translate_pipe(row-1, col) if row-1 >= 0 else None
+        pipe_left = self.translate_pipe(row, col-1) if col-1 >= 0 else None
+        pipe_right = self.translate_pipe(row, col+1) if col+1 < len(self.board[row]) else None
+
+        if row == 0 and col == 0:
+            
+
+
+
+
+
+
+
+        elif row == 0 and col == self.col_count:
+            
+
+
+
         pass
 
 
