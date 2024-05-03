@@ -99,11 +99,34 @@ class Board:
                     col = 0
                     print("")
         row +=1
-      
+
+    def translate_pipe(self, row: int, col: int):
+        """ Devolve um tuplo do formato (CIMA, BAIXO, ESQUERDA, DIREITA) com entradas a 1 nas direções em
+        em que o pipe é aberto e com entradas a 0 nas direções em que o pipe é fechado """
+
+        pipe_type, orientation = self.board[row][col]
+
+        pipe_translations = {
+        'F': {'C': (1, 0, 0, 0), 'B': (0, 1, 0, 0), 'E': (0, 0, 1, 0), 'D': (0, 0, 0, 1)},
+        'B': {'C': (1, 0, 1, 1), 'B': (0, 1, 1, 1), 'E': (1, 1, 1, 0), 'D': (1, 1, 0, 1)},
+        'V': {'C': (1, 0, 1, 0), 'B': (0, 1, 0, 1), 'E': (0, 1, 1, 0), 'D': (1, 0, 0, 1)},
+        'L': {'V': (1, 1, 0, 0), 'H': (0, 0, 1, 1)}
+        }
+
+        return pipe_translations[pipe_type][orientation]
+    
+    def is_connected(self, row: int, col: int):
+        
+        """ Retorna True se o pipe estiver conectado a todos os pipes adjacentes, falso caso contrário """
+        #TODO
+        pass
+
 
 class PipeMania(Problem):
     def __init__(self, board: Board):
         """O construtor especifica o estado inicial."""
+        state = PipeManiaState(board)
+        super().__init__(state)
         # TODO
         pass
 
@@ -146,11 +169,13 @@ if __name__ == "__main__":
 
 
 board = Board.parse_instance() 
-#print(board.adjacent_vertical_values(0, 0))
+#print(board.adjacent_vertical_values(0, 1))
 #print(board.adjacent_horizontal_values(0, 0))
 #print(board.adjacent_vertical_values(1, 1))
 #print(board.adjacent_horizontal_values(1, 1))
-board.print_board()
+#board.print_board()
 #my_problem = PipeMania(board)
+
+
 
 #result = depth_first_tree_search(my_problem)
