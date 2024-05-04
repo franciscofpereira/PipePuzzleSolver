@@ -197,32 +197,61 @@ class PipeMania(Problem):
                 pipe_type, orientation = state.board[i][j]
 
                 actions_to_remove = []
-
+                
                 # Check if we are on the first row
                 if i == 0:
-                    if pipe_type != 'L':
-                        actions_to_remove.append('C')  # Upward rotation
-                    else:
-                        actions_to_remove.append('V')  # Vertical Rotation
+                    if pipe_type == 'F':
+                        actions_to_remove.append('C')  
+                    elif pipe_type == 'V':
+                        actions_to_remove.append('C')
+                        actions_to_remove.append('D')
+                    elif pipe_type == 'B':
+                        actions_to_remove.append('C')
+                        actions_to_remove.append('E')
+                        actions_to_remove.append('D')
+                    elif pipe_type == 'L':
+                        actions_to_remove.append('V')  
                 
                 # Check if we are on the leftmost column
                 if j == 0:
-                    if pipe_type != 'L':
-                        actions_to_remove.append('E')  # Leftward rotation
-                    else:
-                        actions_to_remove.append('H')  # Horizontal rotation
+                    if pipe_type == 'F':
+                        actions_to_remove.append('E')
+                    elif pipe_type == 'B':
+                        actions_to_remove.append('C')
+                        actions_to_remove.append('B')
+                        actions_to_remove.append('E')
+                    elif pipe_type == 'V':
+                        actions_to_remove.append('C')
+                        actions_to_remove.append('E')
+                    elif pipe_type == 'L':
+                        actions_to_remove.append('H')  
 
                 # Check if we are on the rightmost column
                 if j == num_cols - 1:
-                    if pipe_type != 'L':
+                    if pipe_type == 'F':
                         actions_to_remove.append('D')  # Rightward rotation
-                    else:
+                    elif pipe_type == 'B':
+                        actions_to_remove.append('C')
+                        actions_to_remove.append('B')
+                        actions_to_remove.append('D')
+                    elif pipe_type == 'V':
+                        actions_to_remove.append('B')
+                        actions_to_remove.append('D')
+                    elif pipe_type == 'L':
                         actions_to_remove.append('H')
+
                 # Check if we are on the bottom row
                 if i == num_rows - 1:
                     if pipe_type != 'L':
                         actions_to_remove.append('B')  # Downward rotation
-                    else:
+                    elif pipe_type == 'B':
+                        actions_to_remove.append('B')
+                        actions_to_remove.append('E')
+                        actions_to_remove.append('D')
+                    elif pipe_type == 'V':
+                        actions_to_remove.append('B')
+                        actions_to_remove.append('E')
+                    elif pipe_type == 'L':
                         actions_to_remove.append('V')
 
                 # If pipe style is 'L', remove all rotation actions
@@ -296,9 +325,9 @@ my_problem = PipeMania(board)
 
 print(len(my_problem.actions(board)))
 
-action_space = my_problem.actions(board)
+#action_space = my_problem.actions(board)
 
-for action in action_space:
-    print(action)
+#for action in action_space:
+#    print(action)
 
 #result = depth_first_tree_search(my_problem)
