@@ -118,7 +118,7 @@ class Board:
 
     def is_connected(self, row: int, col: int):
         
-        """ Retorna True se o pipe estiver conectado a todos os pipes adjacentes, falso caso contrário """
+        """ Retorna True se o pipe estiver conectado em todas as suas aberturas, falso caso contrário """
         
         pipe_type, orientation = self.board[row][col]
     
@@ -194,11 +194,11 @@ class PipeMania(Problem):
         for i in range(num_rows):
             for j in range(num_cols):
 
-                pipe_style, orientation = state.board[i][j]
+                pipe_type, orientation = state.board[i][j]
 
                 # Check if we are on the first row
                 if i == 0:
-                    if orientation != 'L':
+                    if pipe_type != 'L':
                         actions_to_remove = ['C']  # Upward rotation
                     else:
                         actions_to_remove = ['V']
@@ -207,37 +207,37 @@ class PipeMania(Problem):
 
                 # Check if we are on the leftmost column
                 if j == 0:
-                    if orientation != 'L':
+                    if pipe_type != 'L':
                         actions_to_remove.append('E')  # Leftward rotation
                     else:
                         actions_to_remove.append('H')
 
                 # Check if we are on the rightmost column
                 if j == num_cols - 1:
-                    if orientation != 'L':
+                    if pipe_type != 'L':
                         actions_to_remove.append('D')  # Rightward rotation
                     else:
                         actions_to_remove.append('H')
                 # Check if we are on the bottom row
                 if i == num_rows - 1:
-                    if orientation != 'L':
+                    if pipe_type != 'L':
                         actions_to_remove.append('B')  # Downward rotation
                     else:
                         actions_to_remove.append('V')
 
                 # If pipe style is 'L', remove all rotation actions
-                if pipe_style == 'L':
+                if pipe_type == 'L':
                     actions_to_remove += ['C', 'B', 'E', 'D']
 
                     # Add the opposite orientation as an action
                     if orientation == 'V':
-                        actions.append((i, j, 'H'))
-                    elif orientation == 'H':
-                        actions.append((i, j, 'V'))
+                        actions_to_remove.append('V')
+                    else:
+                        actions_to_remove.append(('H'))
                 else:
                     actions_to_remove += ['V', 'H']
 
-                # Remove actions based on position and pipe_style
+                # Remove actions based on position and pipe_type
                 possible_actions = ['C', 'B', 'E', 'D', 'V', 'H']
                 for action in actions_to_remove:
                     possible_actions.remove(action)
