@@ -196,21 +196,21 @@ class PipeMania(Problem):
 
                 pipe_type, orientation = state.board[i][j]
 
+                actions_to_remove = []
+
                 # Check if we are on the first row
                 if i == 0:
                     if pipe_type != 'L':
-                        actions_to_remove = ['C']  # Upward rotation
+                        actions_to_remove.append('C')  # Upward rotation
                     else:
-                        actions_to_remove = ['V']
-                else:
-                    actions_to_remove = []
-
+                        actions_to_remove.append('V')  # Vertical Rotation
+                
                 # Check if we are on the leftmost column
                 if j == 0:
                     if pipe_type != 'L':
                         actions_to_remove.append('E')  # Leftward rotation
                     else:
-                        actions_to_remove.append('H')
+                        actions_to_remove.append('H')  # Horizontal rotation
 
                 # Check if we are on the rightmost column
                 if j == num_cols - 1:
@@ -233,13 +233,22 @@ class PipeMania(Problem):
                     if orientation == 'V':
                         actions_to_remove.append('V')
                     else:
-                        actions_to_remove.append(('H'))
+                        actions_to_remove.append('H')
                 else:
                     actions_to_remove += ['V', 'H']
 
+                    if orientation == 'C':
+                        actions_to_remove.append('C')
+                    if orientation == 'B':
+                        actions_to_remove.append('B')
+                    if orientation == 'E':
+                        actions_to_remove.append('E')
+                    if orientation == 'D':
+                        actions_to_remove.append('D')
+
                 # Remove actions based on position and pipe_type
                 possible_actions = ['C', 'B', 'E', 'D', 'V', 'H']
-                for action in actions_to_remove:
+                for action in set(actions_to_remove):
                     possible_actions.remove(action)
 
                 # Add remaining actions to the list
@@ -282,16 +291,14 @@ if __name__ == "__main__":
 
 
 board = Board.parse_instance() 
-#print(board.adjacent_vertical_values(0, 1))
-#print(board.adjacent_horizontal_values(0, 0))
-#print(board.adjacent_vertical_values(1, 1))
-#print(board.adjacent_horizontal_values(1, 1))
-#board.print_board()
-#my_problem = PipeMania(board)
 
-#print(board.is_connected(0,0))
-for i in range(0,board.row_count):
-    for j in range(0, board.col_count):
-        print(board.is_connected(i,j))
+my_problem = PipeMania(board)
+
+print(len(my_problem.actions(board)))
+
+action_space = my_problem.actions(board)
+
+for action in action_space:
+    print(action)
 
 #result = depth_first_tree_search(my_problem)
