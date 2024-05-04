@@ -115,29 +115,59 @@ class Board:
 
         return pipe_translations[pipe_type][orientation]
     
+
     def is_connected(self, row: int, col: int):
         
         """ Retorna True se o pipe estiver conectado a todos os pipes adjacentes, falso caso contrário """
-        #TODO
-
-        pipe = self.translate_pipe(row, col)
         
-        pipe_below = self.translate_pipe(row+1, col) if row+1 >=0 else None
-        pipe_above = self.translate_pipe(row-1, col) if row-1 >= 0 else None
-        pipe_left = self.translate_pipe(row, col-1) if col-1 >= 0 else None
-        pipe_right = self.translate_pipe(row, col+1) if col+1 < len(self.board[row]) else None
+        pipe_type, orientation = self.board[row][col]
+    
+        pipe_below = self.translate_pipe(row+1, col) if row+1 < self.row_count else (0,0,0,0)
+        pipe_above = self.translate_pipe(row-1, col) if row-1 >= 0 else (0,0,0,0)
+        pipe_left = self.translate_pipe(row, col-1) if col-1 >= 0 else (0,0,0,0)
+        pipe_right = self.translate_pipe(row, col+1) if col+1 < self.col_count else (0,0,0,0)
 
-        if row == 0 and col == 0:
+        if pipe_type == 'F':
+
+            if orientation == 'C' and pipe_above[1] == 1:
+                return True
+            elif orientation == 'B' and pipe_below[0] == 1:
+                return True
+            elif orientation == 'E' and pipe_right[3] == 1:
+                return True
+            elif orientation == 'D' and pipe_left[2] == 1:
+                return True
+        
+        elif pipe_type == 'B':
+
+            if orientation == 'C' and pipe_above[1] == 1 and pipe_left[3] == 1 and pipe_right[2] == 1:
+                return True
+            elif orientation == 'B' and pipe_below[0] == 1 and pipe_left[3] == 1 and pipe_right[2] == 1:
+                return True
+            elif orientation == 'E' and pipe_above[1] == 1 and pipe_below[0] == 1 and pipe_left[3] == 1:
+                return True
+            elif orientation == 'D' and pipe_above[1] == 1 and pipe_below[0] == 1 and pipe_right[2] == 1:
+                return True
             
+        elif pipe_type == 'V':
 
-
-
-
-
-
-
-        elif row == 0 and col == self.col_count:
+            if orientation == 'C' and pipe_above[1] == 1 and pipe_left[3] == 1:
+                return True
+            elif orientation == 'B' and pipe_below[0] == 1 and pipe_right[2] == 1:
+                return True
+            elif orientation == 'E' and pipe_below[0] == 1 and pipe_left[3] == 1:
+                return True
+            elif orientation == 'D' and pipe_above[1] == 1 and pipe_right[2] == 1:
+                return True
+        
+        elif pipe_type == 'L':
             
+            if orientation == 'H' and pipe_left[3] == 1 and pipe_right[2] == 1:
+                return True
+            elif orientation == 'V' and pipe_above[1] == 1 and pipe_below[0] == 1:
+                return True
+        
+        return False
 
 
 
@@ -156,7 +186,42 @@ class PipeMania(Problem):
         """Retorna uma lista de ações que podem ser executadas a
         partir do estado passado como argumento."""
         # TODO
-        pass
+
+        actions = []
+
+        board = state.board
+
+        for i in range(0, len(state.board)):
+            for j in range(0, len(state.board)):
+
+                pipe_style, orientation = board[i][j]
+
+                if pipe_style == 'L':
+
+                    if orientation == 'H':
+                        actions.append((i,j,'V'))
+                    else:
+                        actions.append((i,j,'H'))
+                else:
+
+                    if orientation == 'C':
+                        actions.append((i,j,'B'))
+                        actions.append((i,j,'E'))
+                        actions.append((i,j,'D'))
+                    elif orientation == 'B':
+                        actions.append((i,j,'C'))
+                        actions.append((i,j,'E'))
+                        actions.append((i,j,'D'))
+                    elif orientation == 'E':
+                        actions.append((i,j,'C'))
+                        actions.append((i,j,'B'))
+                        actions.append((i,j,'D'))
+                    elif orientation == 'D':
+                        actions.append((i,j,'C'))
+                        actions.append((i,j,'B'))
+                        actions.append((i,j,'E'))
+
+        return actions
 
     def result(self, state: PipeManiaState, action):
         """Retorna o estado resultante de executar a 'action' sobre
@@ -198,6 +263,9 @@ board = Board.parse_instance()
 #board.print_board()
 #my_problem = PipeMania(board)
 
-
+#print(board.is_connected(0,0))
+for i in range(0,board.row_count):
+    for j in range(0, board.col_count):
+        print(board.is_connected(i,j))
 
 #result = depth_first_tree_search(my_problem)
