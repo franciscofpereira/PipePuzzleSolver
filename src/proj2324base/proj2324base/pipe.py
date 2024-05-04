@@ -185,43 +185,69 @@ class PipeMania(Problem):
     def actions(self, state: PipeManiaState):
         """Retorna uma lista de ações que podem ser executadas a
         partir do estado passado como argumento."""
-        # TODO
-
+        
         actions = []
 
-        board = state.board
+        num_rows = len(state.board)
+        num_cols = len(state.board[0])
 
-        for i in range(0, len(state.board)):
-            for j in range(0, len(state.board)):
+        for i in range(num_rows):
+            for j in range(num_cols):
 
-                pipe_style, orientation = board[i][j]
+                pipe_style, orientation = state.board[i][j]
 
-                if pipe_style == 'L':
-
-                    if orientation == 'H':
-                        actions.append((i,j,'V'))
+                # Check if we are on the first row
+                if i == 0:
+                    if orientation != 'L':
+                        actions_to_remove = ['C']  # Upward rotation
                     else:
-                        actions.append((i,j,'H'))
+                        actions_to_remove = ['V']
                 else:
+                    actions_to_remove = []
 
-                    if orientation == 'C':
-                        actions.append((i,j,'B'))
-                        actions.append((i,j,'E'))
-                        actions.append((i,j,'D'))
-                    elif orientation == 'B':
-                        actions.append((i,j,'C'))
-                        actions.append((i,j,'E'))
-                        actions.append((i,j,'D'))
-                    elif orientation == 'E':
-                        actions.append((i,j,'C'))
-                        actions.append((i,j,'B'))
-                        actions.append((i,j,'D'))
-                    elif orientation == 'D':
-                        actions.append((i,j,'C'))
-                        actions.append((i,j,'B'))
-                        actions.append((i,j,'E'))
+                # Check if we are on the leftmost column
+                if j == 0:
+                    if orientation != 'L':
+                        actions_to_remove.append('E')  # Leftward rotation
+                    else:
+                        actions_to_remove.append('H')
+
+                # Check if we are on the rightmost column
+                if j == num_cols - 1:
+                    if orientation != 'L':
+                        actions_to_remove.append('D')  # Rightward rotation
+                    else:
+                        actions_to_remove.append('H')
+                # Check if we are on the bottom row
+                if i == num_rows - 1:
+                    if orientation != 'L':
+                        actions_to_remove.append('B')  # Downward rotation
+                    else:
+                        actions_to_remove.append('V')
+
+                # If pipe style is 'L', remove all rotation actions
+                if pipe_style == 'L':
+                    actions_to_remove += ['C', 'B', 'E', 'D']
+
+                    # Add the opposite orientation as an action
+                    if orientation == 'V':
+                        actions.append((i, j, 'H'))
+                    elif orientation == 'H':
+                        actions.append((i, j, 'V'))
+                else:
+                    actions_to_remove += ['V', 'H']
+
+                # Remove actions based on position and pipe_style
+                possible_actions = ['C', 'B', 'E', 'D', 'V', 'H']
+                for action in actions_to_remove:
+                    possible_actions.remove(action)
+
+                # Add remaining actions to the list
+                for action in possible_actions:
+                    actions.append((i, j, action))
 
         return actions
+
 
     def result(self, state: PipeManiaState, action):
         """Retorna o estado resultante de executar a 'action' sobre
