@@ -7,6 +7,7 @@
 # 104182 Tiago Romão
 
 import sys
+from copy import deepcopy
 
 from search import (
     Problem,
@@ -295,7 +296,7 @@ class PipeMania(Problem):
                 for l in actions:
                     print(l)
 
-        print("ADEUS")
+        print("Ação aplicada!")
         return actions
 
     def result(self, state: PipeManiaState, action):
@@ -304,7 +305,7 @@ class PipeMania(Problem):
         das presentes na lista obtida pela execução de
         self.actions(state)."""
 
-        new_board = state.board
+        new_board = deepcopy(state.board)
 
         pipe_x, pipe_y, new_orientation = action
 
@@ -350,7 +351,7 @@ if __name__ == "__main__":
     
     input_board = Board.parse_instance() 
     problem = PipeMania(input_board)
-    solution = astar_search(problem)
+    solution = recursive_best_first_search(problem)
     if solution is not None:
         solution.state.board.print_board()
 
