@@ -7,7 +7,6 @@
 # 104182 Tiago Romão
 
 import sys
-import copy
 
 from search import (
     Problem,
@@ -171,7 +170,17 @@ class Board:
         
         return False
 
+    def sum_connected_pipes(self):
+        """Retorna o número de pipes conectados no Board."""
+        
+        connected_pipes_count = 0
+        for i in range(0, self.row_count):
+            for j in range(0, self.col_count):
 
+                if self.is_connected(i,j):
+                    connected_pipes_count += 1
+
+        return connected_pipes_count
 
       
 class PipeMania(Problem):
@@ -182,15 +191,15 @@ class PipeMania(Problem):
 
     def actions(self, state: PipeManiaState):
         """Retorna uma lista de ações que podem ser executadas a
-        partir do estado passado como argumento."""
+        partir do estado passado como argumento e faz pre-pruning em ações de pipes que estão nas bordas do puzzle."""
         
         actions = []
 
-        num_rows = state.board.row_count
-        num_cols = state.board.col_count
+        for i in range(0,state.board.row_count):
+            for j in range(0, state.board.col_count):
 
-        for i in range(num_rows):
-            for j in range(num_cols):
+                if state.board.is_connected(i,j):
+                    continue
 
                 pipe_type, orientation = state.board.board[i][j]
 
@@ -225,7 +234,7 @@ class PipeMania(Problem):
                         actions_to_remove.append('H')  
 
                 # Check if we are on the rightmost column
-                if j == num_cols - 1:
+                if j == state.board.col_count - 1:
                     if pipe_type == 'F':
                         actions_to_remove.append('D')  # Rightward rotation
                     elif pipe_type == 'B':
@@ -239,8 +248,8 @@ class PipeMania(Problem):
                         actions_to_remove.append('H')
 
                 # Check if we are on the bottom row
-                if i == num_rows - 1:
-                    if pipe_type != 'L':
+                if i == state.board.row_count - 1:
+                    if pipe_type == 'F':
                         actions_to_remove.append('B')  # Downward rotation
                     elif pipe_type == 'B':
                         actions_to_remove.append('B')
@@ -282,8 +291,12 @@ class PipeMania(Problem):
                 for action in possible_actions:
                     actions.append((i, j, action))
 
-        return actions
+                print(f"Estamos na peça {state.board.board[i][j]} com coordenadas {i},{j} e temos {len(actions)} ações que podemos tomar: ")
+                for l in actions:
+                    print(l)
 
+        print("ADEUS")
+        return actions
 
     def result(self, state: PipeManiaState, action):
         """Retorna o estado resultante de executar a 'action' sobre
@@ -291,13 +304,12 @@ class PipeMania(Problem):
         das presentes na lista obtida pela execução de
         self.actions(state)."""
 
-        new_board = copy.deepcopy(state.board)
+        new_board = state.board
 
         pipe_x, pipe_y, new_orientation = action
+
         pipe_type = new_board.board[pipe_x][pipe_y][0]
-
         updated_pipe = pipe_type + new_orientation
-
         new_board.board[pipe_x][pipe_y] = updated_pipe
 
         return PipeManiaState(new_board)
@@ -320,9 +332,16 @@ class PipeMania(Problem):
 
 
     def h(self, node: Node):
-        """Função heuristica utilizada para a procura A*."""
-        # TODO
-        pass
+        """Função heuristica utilizada para a procura A*. Retorna número de pipes desconectados"""
+
+        board = node.state.board
+
+        disconnected_pipes = 0        
+        disconnected_pipes = sum(not board.is_connected(i, j) for i in range(board.row_count) for j in range(board.col_count))
+
+        print(f"Este estado tem {disconnected_pipes} pipes desconectados")
+
+        return disconnected_pipes
 
     # TODO: outros metodos da classe
 
@@ -331,10 +350,13 @@ if __name__ == "__main__":
     
     input_board = Board.parse_instance() 
     problem = PipeMania(input_board)
-    solution = breadth_first_tree_search(problem)
+    solution = astar_search(problem)
     if solution is not None:
         solution.state.board.print_board()
+
     
-   
+    
+
+
 
 
