@@ -7,6 +7,8 @@
 # 104182 Tiago Romão
 
 import sys
+import copy
+
 from search import (
     Problem,
     Node,
@@ -91,11 +93,11 @@ class Board:
         
         """ Imprime a grelha do tabuleiro """
         row = 0; col = 0
-        for row in range (0,board.row_count):
-            for col in range(0,board.col_count):
+        for row in range (0,self.row_count):
+            for col in range(0,self.col_count):
                 print(f"{self.board[row][col]} ", end='')
                 col += 1  
-                if col == board.col_count:
+                if col == self.col_count:
                     col = 0
                     print("")
         row +=1
@@ -171,16 +173,12 @@ class Board:
 
 
 
-        pass
-
-
+      
 class PipeMania(Problem):
     def __init__(self, board: Board):
         """O construtor especifica o estado inicial."""
-        state = PipeManiaState(board)
-        super().__init__(state)
-        # TODO
-        pass
+        super().__init__(PipeManiaState(board))
+        
 
     def actions(self, state: PipeManiaState):
         """Retorna uma lista de ações que podem ser executadas a
@@ -188,16 +186,16 @@ class PipeMania(Problem):
         
         actions = []
 
-        num_rows = len(state.board)
-        num_cols = len(state.board[0])
+        num_rows = state.board.row_count
+        num_cols = state.board.col_count
 
         for i in range(num_rows):
             for j in range(num_cols):
 
-                pipe_type, orientation = state.board[i][j]
+                pipe_type, orientation = state.board.board[i][j]
 
                 actions_to_remove = []
-                
+
                 # Check if we are on the first row
                 if i == 0:
                     if pipe_type == 'F':
@@ -292,15 +290,34 @@ class PipeMania(Problem):
         'state' passado como argumento. A ação a executar deve ser uma
         das presentes na lista obtida pela execução de
         self.actions(state)."""
-        # TODO
-        pass
+
+        new_board = copy.deepcopy(state.board)
+
+        pipe_x, pipe_y, new_orientation = action
+        pipe_type = new_board.board[pipe_x][pipe_y][0]
+
+        updated_pipe = pipe_type + new_orientation
+
+        new_board.board[pipe_x][pipe_y] = updated_pipe
+
+        return PipeManiaState(new_board)
+
 
     def goal_test(self, state: PipeManiaState):
         """Retorna True se e só se o estado passado como argumento é
         um estado objetivo. Deve verificar se todas as posições do tabuleiro
         estão preenchidas de acordo com as regras do problema."""
-        # TODO
-        pass
+        
+        board = state.board
+
+        for i in range(0, board.row_count):
+            for j in range(0, board.col_count):
+
+                if not board.is_connected(i,j):
+                    return False
+
+        return True
+
 
     def h(self, node: Node):
         """Função heuristica utilizada para a procura A*."""
@@ -311,23 +328,13 @@ class PipeMania(Problem):
 
 
 if __name__ == "__main__":
-    # TODO:
-    # Ler o ficheiro do standard input,
-    # Usar uma técnica de procura para resolver a instância,
-    # Retirar a solução a partir do nó resultante,
-    # Imprimir para o standard output no formato indicado.
-    pass
+    
+    input_board = Board.parse_instance() 
+    problem = PipeMania(input_board)
+    solution = breadth_first_tree_search(problem)
+    if solution is not None:
+        solution.state.board.print_board()
+    
+   
 
 
-board = Board.parse_instance() 
-
-my_problem = PipeMania(board)
-
-print(len(my_problem.actions(board)))
-
-#action_space = my_problem.actions(board)
-
-#for action in action_space:
-#    print(action)
-
-#result = depth_first_tree_search(my_problem)
