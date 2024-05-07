@@ -124,18 +124,20 @@ class Board:
         pipe_left = self.translate_pipe(row, col-1) if col-1 >= 0 else (0,0,0,0)
         pipe_right = self.translate_pipe(row, col+1) if col+1 < self.col_count else (0,0,0,0)
 
+        
         #TODO: Caso em que pipe adjacente a pipe de fecho também é de fecho.
          
         if pipe_type == 'F':
 
-            if orientation == 'C' and pipe_above[1] == 1 and self.board[row-1][col][0] != 'F':
-                return True
-            elif orientation == 'B' and pipe_below[0] == 1 and self.board[row+1][col][0] != 'F':
-                return True
-            elif orientation == 'E' and pipe_right[3] == 1 and self.board[row][col+1][0] != 'F':
-                return True
-            elif orientation == 'D' and pipe_left[2] == 1 and self.board[row+1][col-1][0] != 'F':
-                return True
+            if pipe_type == 'F':
+                if orientation == 'C' and row - 1 >= 0 and pipe_above[1] == 1 and self.board[row-1][col][0] != 'F':
+                    return True
+                elif orientation == 'B' and row + 1 < self.row_count and pipe_below[0] == 1 and self.board[row+1][col][0] != 'F':
+                    return True
+                elif orientation == 'E' and col + 1 < self.col_count and pipe_right[3] == 1 and self.board[row][col+1][0] != 'F':
+                    return True
+                elif orientation == 'D' and col - 1 >= 0 and pipe_left[2] == 1 and self.board[row][col-1][0] != 'F':
+                    return True
         
         elif pipe_type == 'B':
 
@@ -347,7 +349,7 @@ if __name__ == "__main__":
     input_board = Board.parse_instance() 
     problem = PipeMania(input_board)
     
-    solution = astar_search(problem)
+    solution = greedy_search(problem)
     if solution is not None:
        solution.state.board.print_board()
 
