@@ -90,18 +90,13 @@ class Board:
         return self.board[row][col]
     
     def print_board(self):
-        
-        """ Imprime a grelha do tabuleiro """
-        row = 0; col = 0
-        for row in range (0,self.row_count):
-            for col in range(0,self.col_count):
-                print(f"{self.board[row][col]} ", end='')
-                col += 1  
-                if col == self.col_count:
-                    col = 0
-                    print("")
-        row +=1
+        """Imprime a grelha do tabuleiro"""
+        for row in range(self.row_count):
+            for col in range(self.col_count):
+                print(f"{self.board[row][col]}\t", end='')  # Tab spacing between elements
+            print()  # Move to the next line after printing each row
 
+        
     def translate_pipe(self, row: int, col: int):
         """ Devolve um tuplo do formato (CIMA, BAIXO, ESQUERDA, DIREITA) com entradas a 1 nas direções em
         em que o pipe é aberto e com entradas a 0 nas direções em que o pipe é fechado """
@@ -129,15 +124,17 @@ class Board:
         pipe_left = self.translate_pipe(row, col-1) if col-1 >= 0 else (0,0,0,0)
         pipe_right = self.translate_pipe(row, col+1) if col+1 < self.col_count else (0,0,0,0)
 
+        #TODO: Caso em que pipe adjacente a pipe de fecho também é de fecho.
+         
         if pipe_type == 'F':
 
-            if orientation == 'C' and pipe_above[1] == 1:
+            if orientation == 'C' and pipe_above[1] == 1 and self.board[row-1][col][0] != 'F':
                 return True
-            elif orientation == 'B' and pipe_below[0] == 1:
+            elif orientation == 'B' and pipe_below[0] == 1 and self.board[row+1][col][0] != 'F':
                 return True
-            elif orientation == 'E' and pipe_right[3] == 1:
+            elif orientation == 'E' and pipe_right[3] == 1 and self.board[row][col+1][0] != 'F':
                 return True
-            elif orientation == 'D' and pipe_left[2] == 1:
+            elif orientation == 'D' and pipe_left[2] == 1 and self.board[row+1][col-1][0] != 'F':
                 return True
         
         elif pipe_type == 'B':
@@ -292,11 +289,11 @@ class PipeMania(Problem):
                 for action in possible_actions:
                     actions.append((i, j, action))
 
-                print(f"Estamos na peça {state.board.board[i][j]} com coordenadas {i},{j} e temos {len(actions)} ações que podemos tomar: ")
-                for l in actions:
-                    print(l)
+                #print(f"Peça {state.board.board[i][j]} com coordenadas {i},{j} e temos {len(actions)} ações possíveis: ")
+                #for l in actions:
+                    #print(l)
 
-        print("Ação aplicada!")
+        #print("Ação aplicada!")
         return actions
 
     def result(self, state: PipeManiaState, action):
@@ -336,11 +333,9 @@ class PipeMania(Problem):
         """Função heuristica utilizada para a procura A*. Retorna número de pipes desconectados"""
 
         board = node.state.board
-
-        disconnected_pipes = 0        
+      
         disconnected_pipes = sum(not board.is_connected(i, j) for i in range(board.row_count) for j in range(board.col_count))
-
-        print(f"Este estado tem {disconnected_pipes} pipes desconectados")
+        #print(f"Este estado tem {disconnected_pipes} pipes desconectados")
 
         return disconnected_pipes
 
@@ -351,9 +346,10 @@ if __name__ == "__main__":
     
     input_board = Board.parse_instance() 
     problem = PipeMania(input_board)
-    solution = recursive_best_first_search(problem)
+    
+    solution = astar_search(problem)
     if solution is not None:
-        solution.state.board.print_board()
+       solution.state.board.print_board()
 
     
     
