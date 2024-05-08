@@ -93,10 +93,12 @@ class Board:
         """Imprime a grelha do tabuleiro"""
         for row in range(self.row_count):
             for col in range(self.col_count):
-                print(f"{self.board[row][col]}\t", end='')  # Tab spacing between elements
-            print()  # Move to the next line after printing each row
+                print(f"{self.board[row][col]}\t", end='')  
+            print()
 
-        
+        print()  
+
+
     def translate_pipe(self, row: int, col: int):
         """ Devolve um tuplo do formato (CIMA, BAIXO, ESQUERDA, DIREITA) com entradas a 1 nas direções em
         em que o pipe é aberto e com entradas a 0 nas direções em que o pipe é fechado """
@@ -321,14 +323,12 @@ class PipeMania(Problem):
         estão preenchidas de acordo com as regras do problema."""
         
         board = state.board
+        
+        # List comprehension to check if all positions on the board are connected
+        all_connected = all(board.is_connected(i, j) for i in range(board.row_count) for j in range(board.col_count))
+        
+        return all_connected
 
-        for i in range(0, board.row_count):
-            for j in range(0, board.col_count):
-
-                if not board.is_connected(i,j):
-                    return False
-
-        return True
 
 
     def h(self, node: Node):
@@ -337,8 +337,7 @@ class PipeMania(Problem):
         board = node.state.board
       
         disconnected_pipes = sum(not board.is_connected(i, j) for i in range(board.row_count) for j in range(board.col_count))
-        #print(f"Este estado tem {disconnected_pipes} pipes desconectados")
-
+        
         return disconnected_pipes
 
     # TODO: outros metodos da classe
@@ -349,10 +348,12 @@ if __name__ == "__main__":
     input_board = Board.parse_instance() 
     problem = PipeMania(input_board)
     
-    solution = greedy_search(problem)
+    solution = astar_search(problem)
     if solution is not None:
+       print()
+       print("Solution: ")
        solution.state.board.print_board()
-
+    
     
     
 

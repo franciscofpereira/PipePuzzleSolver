@@ -8,8 +8,13 @@ functions.
 
 import sys
 from collections import deque
+sys.path.append('/home/francisco/Documents/ProjetoIA/src/')
+from Visualizador.visualizer2 import visualizer
+
+
 
 from utils import *
+
 
 
 class Problem:
@@ -270,10 +275,16 @@ def best_first_graph_search(problem, f, display=False):
     frontier = PriorityQueue('min', f)
     frontier.append(node)
     explored = set()
+    expandend_nodes = 0
     while frontier:
         node = frontier.pop()
         print()
-        node.state.board.print_board()
+        expandend_nodes += 1
+        #print(expandend_nodes)
+        #print(f"f(n)={f(node)}")
+        #node.state.board.print_board()
+        parent_state = node.parent.state.board.board if node.parent is not None else None
+        visualizer(node.state.board.board, parent_state)
         if problem.goal_test(node.state):
             if display:
                 print(len(explored), "paths have been expanded and", len(frontier), "paths remain in the frontier")
