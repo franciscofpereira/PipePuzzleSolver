@@ -117,60 +117,114 @@ class Board:
 
     def is_connected(self, row: int, col: int):
         
-        """ Retorna True se o pipe estiver conectado em todas as suas aberturas, falso caso contrário """
+        """ Retorna um tuplo no formato (BOOL, INT) em que BOOL é True se a peça está conectada e False caso contrário.
+        O valor de INT indica o número de aberturas da peça que estão conectadas. """
         
+        connected_ends = 0
         pipe_type, orientation = self.board[row][col]
-    
+
         pipe_below = self.translate_pipe(row+1, col) if row+1 < self.row_count else (0,0,0,0)
         pipe_above = self.translate_pipe(row-1, col) if row-1 >= 0 else (0,0,0,0)
         pipe_left = self.translate_pipe(row, col-1) if col-1 >= 0 else (0,0,0,0)
         pipe_right = self.translate_pipe(row, col+1) if col+1 < self.col_count else (0,0,0,0)
 
-        
-        #TODO: Caso em que pipe adjacente a pipe de fecho também é de fecho.
-         
         if pipe_type == 'F':
 
             if pipe_type == 'F':
                 if orientation == 'C' and row - 1 >= 0 and pipe_above[1] == 1 and self.board[row-1][col][0] != 'F':
-                    return True
+                    return (True, 1)
                 elif orientation == 'B' and row + 1 < self.row_count and pipe_below[0] == 1 and self.board[row+1][col][0] != 'F':
-                    return True
+                    return (True, 1)
                 elif orientation == 'E' and col + 1 < self.col_count and pipe_right[3] == 1 and self.board[row][col+1][0] != 'F':
-                    return True
+                    return (True, 1)
                 elif orientation == 'D' and col - 1 >= 0 and pipe_left[2] == 1 and self.board[row][col-1][0] != 'F':
-                    return True
+                    return (True, 1)
         
         elif pipe_type == 'B':
 
-            if orientation == 'C' and pipe_above[1] == 1 and pipe_left[3] == 1 and pipe_right[2] == 1:
-                return True
-            elif orientation == 'B' and pipe_below[0] == 1 and pipe_left[3] == 1 and pipe_right[2] == 1:
-                return True
-            elif orientation == 'E' and pipe_above[1] == 1 and pipe_below[0] == 1 and pipe_left[3] == 1:
-                return True
-            elif orientation == 'D' and pipe_above[1] == 1 and pipe_below[0] == 1 and pipe_right[2] == 1:
-                return True
+            if orientation == 'C':
+                
+                if pipe_above[1] == 1:
+                    connected_ends += 1
+                if pipe_left[3] == 1:
+                    connected_ends += 1
+                if  pipe_right[2] == 1:
+                    connected_ends += 1
+
+            elif orientation == 'B':
+                
+                if pipe_below[0] == 1:
+                    connected_ends += 1
+                if pipe_left[3] == 1:
+                    connected_ends += 1
+                if  pipe_right[2] == 1:
+                    connected_ends += 1
+ 
+            elif orientation == 'E':
+                
+                if pipe_above[1] == 1:
+                    connected_ends += 1
+                if pipe_below[0] == 1:
+                    connected_ends += 1
+                if pipe_left[3] == 1:
+                    connected_ends += 1
+                    
+            elif orientation == 'D':
+                
+                if pipe_above[1] == 1:
+                    connected_ends += 1
+                if pipe_below[0] == 1:
+                    connected_ends += 1
+                if pipe_right[2] == 1:
+                    connected_ends += 1
+
+            return (connected_ends == 3, connected_ends)
             
         elif pipe_type == 'V':
 
-            if orientation == 'C' and pipe_above[1] == 1 and pipe_left[3] == 1:
-                return True
-            elif orientation == 'B' and pipe_below[0] == 1 and pipe_right[2] == 1:
-                return True
-            elif orientation == 'E' and pipe_below[0] == 1 and pipe_left[3] == 1:
-                return True
-            elif orientation == 'D' and pipe_above[1] == 1 and pipe_right[2] == 1:
-                return True
+            if orientation == 'C':
+                if pipe_above[1] == 1:
+                    connected_ends += 1
+                if pipe_left[3] == 1:
+                    connected_ends += 1
+                
+            elif orientation == 'B': 
+                if pipe_below[0] == 1: 
+                    connected_ends += 1
+                if pipe_right[2] == 1:
+                    connected_ends += 1
+                
+            elif orientation == 'E': 
+                if pipe_below[0] == 1: 
+                    connected_ends += 1
+                if pipe_left[3] == 1:
+                    connected_ends += 1
+            
+            elif orientation == 'D':
+                if pipe_above[1] == 1:
+                    connected_ends += 1
+                if pipe_right[2] == 1:
+                    connected_ends += 1
+        
+            return (connected_ends == 2, connected_ends)
         
         elif pipe_type == 'L':
             
-            if orientation == 'H' and pipe_left[3] == 1 and pipe_right[2] == 1:
-                return True
-            elif orientation == 'V' and pipe_above[1] == 1 and pipe_below[0] == 1:
-                return True
+            if orientation == 'H':
+                if pipe_left[3] == 1:
+                    connected_ends += 1
+                if pipe_right[2] == 1:
+                    connected_ends += 1
+             
+            elif orientation == 'V':
+                if pipe_above[1] == 1:
+                    connected_ends += 1
+                if pipe_below[0] == 1:
+                    connected_ends += 1
+            
+            return (connected_ends == 2, connected_ends)
         
-        return False
+        return (False, connected_ends)
 
     def sum_connected_pipes(self):
         """Retorna o número de pipes conectados no Board."""
@@ -179,10 +233,34 @@ class Board:
         for i in range(0, self.row_count):
             for j in range(0, self.col_count):
 
-                if self.is_connected(i,j):
+                if self.is_connected(i,j)[0]:
                     connected_pipes_count += 1
 
         return connected_pipes_count
+
+    
+    def get_total_pipe_ends(self):
+        ''' Retorna o número de pipe ends no tabuleiro. '''
+
+        pipe_ends = 0
+        for row in range(self.row_count):
+            for col in range(self.col_count):
+
+                pipe_type = self.board[row][col][0]
+
+                if pipe_type == 'F':
+                    pipe_ends += 1
+
+                elif pipe_type == 'B':
+                    pipe_ends += 3
+                
+                elif pipe_type == 'V' or pipe_type == 'L':
+                    pipe_ends += 2
+
+        return pipe_ends
+    
+
+
 
       
 class PipeMania(Problem):
@@ -200,7 +278,7 @@ class PipeMania(Problem):
         for i in range(0,state.board.row_count):
             for j in range(0, state.board.col_count):
 
-                if state.board.is_connected(i,j):
+                if state.board.is_connected(i,j)[0]:
                     continue
 
                 pipe_type, orientation = state.board.board[i][j]
@@ -284,12 +362,12 @@ class PipeMania(Problem):
                     if orientation == 'D':
                         actions_to_remove.append('D')
 
-                # Remove actions based on position and pipe_type
+                # Removes actions based on position and pipe_type
                 possible_actions = ['C', 'B', 'E', 'D', 'V', 'H']
                 for action in set(actions_to_remove):
                     possible_actions.remove(action)
 
-                # Add remaining actions to the list
+                # Adds remaining actions to the list
                 for action in possible_actions:
                     actions.append((i, j, action))
 
@@ -297,7 +375,6 @@ class PipeMania(Problem):
                 #for l in actions:
                     #print(l)
 
-        #print("Ação aplicada!")
         return actions
 
     def result(self, state: PipeManiaState, action):
@@ -325,7 +402,7 @@ class PipeMania(Problem):
         board = state.board
         
         # List comprehension to check if all positions on the board are connected
-        all_connected = all(board.is_connected(i, j) for i in range(board.row_count) for j in range(board.col_count))
+        all_connected = all(board.is_connected(i, j)[0] for i in range(board.row_count) for j in range(board.col_count))
         
         return all_connected
 
@@ -336,11 +413,13 @@ class PipeMania(Problem):
 
         board = node.state.board
       
-        disconnected_pipes = sum(not board.is_connected(i, j) for i in range(board.row_count) for j in range(board.col_count))
+        disconnected_pipes = sum(not board.is_connected(i, j)[0] for i in range(board.row_count) for j in range(board.col_count))
         
         return disconnected_pipes
 
     # TODO: outros metodos da classe
+
+
 
 
 if __name__ == "__main__":
