@@ -121,115 +121,33 @@ class Board:
         return pipe_translations[pipe_type][orientation]
     
 
+
     def is_connected(self, row: int, col: int):
-        
         """ Retorna um tuplo no formato (BOOL, INT) em que BOOL é True se a peça está conectada e False caso contrário.
         O valor de INT indica o número de aberturas da peça que estão conectadas. """
         
         connected_ends = 0
         pipe_type, orientation = self.board[row][col]
+        
+        neighbours = self.get_neighbors(row, col)
 
-        pipe_below = self.translate_pipe(row+1, col) if row+1 < self.row_count else (0,0,0,0)
-        pipe_above = self.translate_pipe(row-1, col) if row-1 >= 0 else (0,0,0,0)
-        pipe_left = self.translate_pipe(row, col-1) if col-1 >= 0 else (0,0,0,0)
-        pipe_right = self.translate_pipe(row, col+1) if col+1 < self.col_count else (0,0,0,0)
+        for neighbour in neighbours:    
+            x_offset = neighbour[0] - row 
+            y_offset = neighbour[1] - col 
+            if self.check_compatibility(row, col, x_offset, y_offset):
+                connected_ends += 1
 
         if pipe_type == 'F':
-
-            if orientation == 'C' and row - 1 >= 0 and pipe_above[1] == 1 and self.board[row-1][col][0] != 'F':
-                return (True, 1)
-            elif orientation == 'B' and row + 1 < self.row_count and pipe_below[0] == 1 and self.board[row+1][col][0] != 'F':
-                return (True, 1)
-            elif orientation == 'E' and col - 1 >= 0  and pipe_left[3] == 1 and self.board[row][col-1][0] != 'F':
-                return (True, 1)
-            elif orientation == 'D' and col + 1 < self.col_count  and pipe_right[2] == 1 and self.board[row][col+1][0] != 'F':
-                return (True, 1)
-            
+            return (connected_ends == 1, connected_ends)
         elif pipe_type == 'B':
-
-            if orientation == 'C':
-                
-                if pipe_above[1] == 1:
-                    connected_ends += 1
-                if pipe_left[3] == 1:
-                    connected_ends += 1
-                if  pipe_right[2] == 1:
-                    connected_ends += 1
-
-            elif orientation == 'B':
-                
-                if pipe_below[0] == 1:
-                    connected_ends += 1
-                if pipe_left[3] == 1:
-                    connected_ends += 1
-                if  pipe_right[2] == 1:
-                    connected_ends += 1
- 
-            elif orientation == 'E':
-                
-                if pipe_above[1] == 1:
-                    connected_ends += 1
-                if pipe_below[0] == 1:
-                    connected_ends += 1
-                if pipe_left[3] == 1:
-                    connected_ends += 1
-                    
-            elif orientation == 'D':
-                
-                if pipe_above[1] == 1:
-                    connected_ends += 1
-                if pipe_below[0] == 1:
-                    connected_ends += 1
-                if pipe_right[2] == 1:
-                    connected_ends += 1
-
             return (connected_ends == 3, connected_ends)
-            
         elif pipe_type == 'V':
-
-            if orientation == 'C':
-                if pipe_above[1] == 1:
-                    connected_ends += 1
-                if pipe_left[3] == 1:
-                    connected_ends += 1
-                
-            elif orientation == 'B': 
-                if pipe_below[0] == 1: 
-                    connected_ends += 1
-                if pipe_right[2] == 1:
-                    connected_ends += 1
-                
-            elif orientation == 'E': 
-                if pipe_below[0] == 1: 
-                    connected_ends += 1
-                if pipe_left[3] == 1:
-                    connected_ends += 1
-            
-            elif orientation == 'D':
-                if pipe_above[1] == 1:
-                    connected_ends += 1
-                if pipe_right[2] == 1:
-                    connected_ends += 1
-        
             return (connected_ends == 2, connected_ends)
-        
         elif pipe_type == 'L':
-            
-            if orientation == 'H':
-                if pipe_left[3] == 1:
-                    connected_ends += 1
-                if pipe_right[2] == 1:
-                    connected_ends += 1
-             
-            elif orientation == 'V':
-                if pipe_above[1] == 1:
-                    connected_ends += 1
-                if pipe_below[0] == 1:
-                    connected_ends += 1
-            
             return (connected_ends == 2, connected_ends)
-        
-        return (False, connected_ends)
+        else:
+            return (False, connected_ends)
+
 
     def sum_connected_pipes(self):
         """Retorna o número de pipes conectados no Board."""
@@ -244,26 +162,6 @@ class Board:
         return connected_pipes_count
 
     
-    def get_total_pipe_ends(self):
-        ''' Retorna o número de pipe ends no tabuleiro. '''
-
-        pipe_ends = 0
-        for row in range(self.row_count):
-            for col in range(self.col_count):
-
-                pipe_type = self.board[row][col][0]
-
-                if pipe_type == 'F':
-                    pipe_ends += 1
-
-                elif pipe_type == 'B':
-                    pipe_ends += 3
-                
-                elif pipe_type == 'V' or pipe_type == 'L':
-                    pipe_ends += 2
-
-        return pipe_ends
-    
     def check_compatibility(self, row: int, col: int, x_offset: int, y_offset):
         
         ''' Verifica se o pipe é compatível com a peça adjacente. A posição da peça adjacente é expressa por x_offset
@@ -275,7 +173,7 @@ class Board:
         # RIGHT (0, +1)
 
         p1 = self.translate_pipe(row,col)
-        p2 = self.translate_pipe(row + x_offset, col + y_offset)  if  (0 <= row + x_offset <= self.row_count and 0 <= col + y_offset <= self.col_count) else (0,0,0,0)
+        p2 = self.translate_pipe(row + x_offset, col + y_offset)  if  (0 <= row + x_offset < self.row_count and 0 <= col + y_offset < self.col_count) else (0,0,0,0)
 
         offset_tuple = (x_offset, y_offset)
 
@@ -297,6 +195,50 @@ class Board:
 
         return False
     
+
+    def get_neighbors(self, row: int, col: int):
+        ''' Retorna uma lista com tuplos com as coordenadas dos pipes vizinhos nas direções em que o pipe tem aberturas '''
+        
+        pipe = self.translate_pipe(row, col)
+        
+        neighbours = []
+
+        if pipe[0] and row - 1 >= 0:
+            neighbours.append((row - 1, col))
+           
+
+        if pipe[1] and row + 1 < self.row_count:
+            neighbours.append((row + 1, col))
+
+        if pipe[2] and col - 1 >= 0:
+            neighbours.append((row, col - 1))
+
+        if pipe[3] and col + 1 < self.col_count:
+            neighbours.append((row, col + 1))
+
+        return neighbours
+    
+    def get_total_pipe_ends(self):
+        ''' Retorna o número de pipe ends no tabuleiro. '''
+
+        pipe_ends = 0
+        for row in range(self.row_count):
+            for col in range(self.col_count):
+
+                pipe_type = self.board[row][col][0]
+
+                if pipe_type == 'F':
+                    pipe_ends += 1
+
+                elif pipe_type == 'B':
+                    pipe_ends += 3
+                
+                elif pipe_type == 'V' or pipe_type == 'L':
+                    pipe_ends += 2
+
+        return pipe_ends
+
+
     def fix_corners(self):
         ''' Corrige a rotação das peças dos cantos do tabuleiro '''
         
@@ -336,8 +278,7 @@ class Board:
 
         return self
 
-    
-    
+
     def fix_edges(self):
         # fixes corners
         self.fix_corners()
@@ -565,16 +506,20 @@ if __name__ == "__main__":
     
     input_board = Board.parse_instance() 
 
+    for i in range(0, input_board.row_count):
+        for j in range(0, input_board.col_count):
+            print(input_board.is_connected(i,j))
+
     #visualizer(input_board.board, None)
 
     input_board.fix_edges()
 
+    
     #visualizer(input_board.board, None)
     
     problem = PipeMania(input_board)
     solution = astar_search(problem)
     if solution is not None:
-        print()
         print("Solution: ")
         solution.state.board.print_board()
 
