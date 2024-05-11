@@ -8,6 +8,11 @@
 
 import sys
 from copy import deepcopy
+import random
+
+sys.path.append('/home/francisco/Documents/ProjetoIA/src/')
+from Visualizador.visualizer2 import visualizer
+
 
 from search import (
     Problem,
@@ -18,7 +23,6 @@ from search import (
     greedy_search,
     recursive_best_first_search,
 )
-
 
 class PipeManiaState:
     state_id = 0
@@ -40,6 +44,8 @@ class Board:
         self.board = board
         self.row_count = len(board)
         self.col_count = len(board[0]) if board else 0
+        self.total_pipe_ends = self.get_total_pipe_ends()
+        self.optimal = [[0] * self.col_count for _ in range(self.row_count)]
 
     @staticmethod
     def parse_instance():
@@ -130,16 +136,15 @@ class Board:
 
         if pipe_type == 'F':
 
-            if pipe_type == 'F':
-                if orientation == 'C' and row - 1 >= 0 and pipe_above[1] == 1 and self.board[row-1][col][0] != 'F':
-                    return (True, 1)
-                elif orientation == 'B' and row + 1 < self.row_count and pipe_below[0] == 1 and self.board[row+1][col][0] != 'F':
-                    return (True, 1)
-                elif orientation == 'E' and col + 1 < self.col_count and pipe_right[3] == 1 and self.board[row][col+1][0] != 'F':
-                    return (True, 1)
-                elif orientation == 'D' and col - 1 >= 0 and pipe_left[2] == 1 and self.board[row][col-1][0] != 'F':
-                    return (True, 1)
-        
+            if orientation == 'C' and row - 1 >= 0 and pipe_above[1] == 1 and self.board[row-1][col][0] != 'F':
+                return (True, 1)
+            elif orientation == 'B' and row + 1 < self.row_count and pipe_below[0] == 1 and self.board[row+1][col][0] != 'F':
+                return (True, 1)
+            elif orientation == 'E' and col - 1 >= 0  and pipe_left[3] == 1 and self.board[row][col-1][0] != 'F':
+                return (True, 1)
+            elif orientation == 'D' and col + 1 < self.col_count  and pipe_right[2] == 1 and self.board[row][col+1][0] != 'F':
+                return (True, 1)
+            
         elif pipe_type == 'B':
 
             if orientation == 'C':
@@ -259,10 +264,144 @@ class Board:
 
         return pipe_ends
     
+    def check_compatibility(self, row: int, col: int, x_offset: int, y_offset):
+        
+        ''' Verifica se o pipe é compatível com a peça adjacente. A posição da peça adjacente é expressa por x_offset
+        quando à esquerda ou direita ou por y_offset quando acima ou abaixo.'''
+        
+        # UP (-1,0)
+        # DOWN (+1,0)
+        # LEFT (0,-1)
+        # RIGHT (0, +1)
+
+        p1 = self.translate_pipe(row,col)
+        p2 = self.translate_pipe(row + x_offset, col + y_offset)  if  (0 <= row + x_offset <= self.row_count and 0 <= col + y_offset <= self.col_count) else (0,0,0,0)
+
+        offset_tuple = (x_offset, y_offset)
+
+        # UP
+        if offset_tuple == (-1,0):
+            return p1[0] and p2[1]
+        
+        # DOWN
+        elif offset_tuple == (1,0):
+            return p1[1] and p2[0]
+        
+        # LEFT
+        elif offset_tuple == (0,-1):
+            return p1[2] and p2[3]
+        
+        # RIGHT
+        elif offset_tuple == (0,1):
+            return p1[3] and p2[2]
+
+        return False
+    
+    def fix_corners(self):
+        ''' Corrige a rotação das peças dos cantos do tabuleiro '''
+        
+        top_left = self.board[0][0]
+        top_right = self.board[0][self.col_count-1]
+        bottom_left = self.board[self.row_count-1][0]
+        bottom_right = self.board[self.row_count-1][self.col_count-1]
+
+        if top_left[0] == 'V':
+            self.board[0][0] = 'VB'
+            self.optimal[0][0] = 1
+        else:
+            
+            if not self.is_connected(0,0)[0]:
+                self.board[0][0] = random.choice(['FB', 'FD'])
+
+        if top_right[0] == 'V':
+            self.board[0][self.col_count-1] = 'VE'
+            self.optimal[0][self.col_count-1] = 1
+        else:
+            if not self.is_connected(0,self.col_count-1)[0]:
+                self.board[0][self.col_count-1] = random.choice(['FB', 'FE'])
+
+        if bottom_left[0] == 'V':
+            self.board[self.row_count-1][0] = 'VD'
+            self.optimal[self.row_count-1][0] = 1
+        else:
+            if not self.is_connected(self.row_count-1,0)[0]:
+                self.board[self.row_count-1][0] = random.choice(['FC', 'FD'])
+
+        if bottom_right[0] == 'V':
+            self.board[self.row_count-1][self.col_count-1] = 'VC'
+            self.optimal[self.row_count-1][self.col_count-1] = 1
+        else:
+            if not self.is_connected(self.row_count-1,self.col_count-1)[0]:
+                self.board[self.row_count-1][self.col_count-1] = random.choice(['FC', 'FE'])
+
+        return self
+
+    
+    
+    def fix_edges(self):
+        # fixes corners
+        self.fix_corners()
+
+        # bottom and top row
+        for col in range(0, self.col_count):
+            top_row = self.board[0][col]
+            bottom_row = self.board[self.row_count - 1][col]
+
+            if col > 0 and col < self.col_count - 1:
+                if top_row == 'FC':
+                    self.board[0][col] = random.choice(['FB', 'FE', 'FD'])
+                elif top_row == 'VC' or top_row == 'VD':
+                    self.board[0][col] = random.choice(['VB', 'VE'])
+                elif top_row[0] == 'B':
+                    self.board[0][col] = 'BB'
+                    self.optimal[0][col] = 1
+                elif top_row[0] == 'L':
+                    self.board[0][col] = 'LH'
+                    self.optimal[0][col] = 1
+
+                if bottom_row == 'FB':
+                    self.board[self.row_count - 1][col] = random.choice(['FC', 'FE', 'FD'])
+                elif bottom_row == 'VB'or bottom_row == 'VE':
+                    self.board[self.row_count - 1][col] = random.choice(['VC', 'VD'])
+                elif bottom_row[0] == 'B':
+                    self.board[self.row_count - 1][col] = 'BC'
+                    self.optimal[self.row_count - 1][col] = 1
+                elif bottom_row[0] == 'L':
+                    self.board[self.row_count - 1][col] = 'LH'
+                    self.optimal[self.row_count - 1][col] = 1
+
+        # left and right columns            
+        for row in range(0, self.row_count):
+            left_col = self.board[row][0]
+            right_col = self.board[row][self.col_count - 1]
+
+            if row > 0 and row < self.row_count - 1:
+                if left_col == 'FE':
+                    self.board[row][0] = random.choice(['FB', 'FC', 'FD'])
+                elif left_col == 'VE' or left_col == 'VC':
+                    self.board[row][0] = random.choice(['VB', 'VD'])
+                elif left_col[0] == 'B':
+                    self.board[row][0] = 'BD'
+                    self.optimal[row][0] = 1
+                elif left_col[0] == 'L':
+                    self.board[row][0] = 'LV'
+                    self.optimal[row][0] = 1
+                
+                if right_col[0] == 'FD':
+                    self.board[row][self.col_count - 1] = random.choice(['FB', 'FC', 'FE'])
+                elif right_col[0] == 'VD' or right_col == 'VB':
+                    self.board[row][self.col_count - 1] = random.choice(['VC', 'VE'])
+                elif right_col[0] == 'B':
+                    self.board[row][self.col_count - 1] = 'BE'
+                    self.optimal[row][self.col_count - 1] = 1
+                elif right_col[0] == 'L':
+                    self.board[row][self.col_count - 1] = 'LV'
+                    self.optimal[row][self.col_count - 1] = 1
+
+        return self
+        
 
 
-
-      
 class PipeMania(Problem):
     def __init__(self, board: Board):
         """O construtor especifica o estado inicial."""
@@ -278,7 +417,7 @@ class PipeMania(Problem):
         for i in range(0,state.board.row_count):
             for j in range(0, state.board.col_count):
 
-                if state.board.is_connected(i,j)[0]:
+                if state.board.optimal[i][j]:
                     continue
 
                 pipe_type, orientation = state.board.board[i][j]
@@ -403,19 +542,19 @@ class PipeMania(Problem):
         
         # List comprehension to check if all positions on the board are connected
         all_connected = all(board.is_connected(i, j)[0] for i in range(board.row_count) for j in range(board.col_count))
-        
+
         return all_connected
 
 
 
     def h(self, node: Node):
-        """Função heuristica utilizada para a procura A*. Retorna número de pipes desconectados"""
+        """Função heuristica utilizada para a procura A*. Retorna número de pipe ends desconectadas"""
 
         board = node.state.board
       
-        disconnected_pipes = sum(not board.is_connected(i, j)[0] for i in range(board.row_count) for j in range(board.col_count))
-        
-        return disconnected_pipes
+        connected_pipe_ends = sum(board.is_connected(i, j)[1] for i in range(board.row_count) for j in range(board.col_count))
+    
+        return board.total_pipe_ends - connected_pipe_ends
 
     # TODO: outros metodos da classe
 
@@ -425,13 +564,21 @@ class PipeMania(Problem):
 if __name__ == "__main__":
     
     input_board = Board.parse_instance() 
-    problem = PipeMania(input_board)
+
+    #visualizer(input_board.board, None)
+
+    input_board.fix_edges()
+
+    #visualizer(input_board.board, None)
     
+    problem = PipeMania(input_board)
     solution = astar_search(problem)
     if solution is not None:
-       print()
-       print("Solution: ")
-       solution.state.board.print_board()
+        print()
+        print("Solution: ")
+        solution.state.board.print_board()
+
+
     
     
     

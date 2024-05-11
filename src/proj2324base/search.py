@@ -280,11 +280,11 @@ def best_first_graph_search(problem, f, display=False):
         node = frontier.pop()
         print()
         expandend_nodes += 1
-        #print(expandend_nodes)
+        print(expandend_nodes)
         print(f"f(n)={f(node)}")
-        node.state.board.print_board()
-        parent_state = node.parent.state.board.board if node.parent is not None else None
-        visualizer(node.state.board.board, parent_state)
+        #node.state.board.print_board()
+        #parent_state = node.parent.state.board.board if node.parent is not None else None
+        #visualizer(node.state.board.board, parent_state)
         if problem.goal_test(node.state):
             if display:
                 print(len(explored), "paths have been expanded and", len(frontier), "paths remain in the frontier")
