@@ -45,7 +45,9 @@ class Board:
         self.row_count = len(board)
         self.col_count = len(board[0]) if board else 0
         self.total_pipe_ends = self.get_total_pipe_ends()
-        self.optimal = [[0] * self.col_count for _ in range(self.row_count)]
+        self.domain = self.initialize_domains()
+        self.queue = self.initialize_queue()
+        
 
     @staticmethod
     def parse_instance():
@@ -121,13 +123,12 @@ class Board:
         return pipe_translations[pipe_type][orientation]
     
 
-
     def is_connected(self, row: int, col: int):
         """ Retorna um tuplo no formato (BOOL, INT) em que BOOL é True se a peça está conectada e False caso contrário.
         O valor de INT indica o número de aberturas da peça que estão conectadas. """
         
         connected_ends = 0
-        pipe_type, orientation = self.board[row][col]
+        pipe_type = self.board[row][col][0]
         
         neighbours = self.get_neighbors(row, col)
 
@@ -167,14 +168,16 @@ class Board:
         ''' Verifica se o pipe é compatível com a peça adjacente. A posição da peça adjacente é expressa por x_offset
         quando à esquerda ou direita ou por y_offset quando acima ou abaixo.'''
         
-        # UP (-1,0)
-        # DOWN (+1,0)
-        # LEFT (0,-1)
-        # RIGHT (0, +1)
-
         p1 = self.translate_pipe(row,col)
         p2 = self.translate_pipe(row + x_offset, col + y_offset)  if  (0 <= row + x_offset < self.row_count and 0 <= col + y_offset < self.col_count) else (0,0,0,0)
 
+        pipe1_type = self.board[row][col][0]
+        pipe2_type = self.board[row+x_offset][col+y_offset][0]
+
+        # Two close ended pipes are never compatible
+        if pipe1_type == 'F' and pipe2_type == 'F':
+            return False
+        
         offset_tuple = (x_offset, y_offset)
 
         # UP
@@ -217,6 +220,13 @@ class Board:
             neighbours.append((row, col + 1))
 
         return neighbours
+
+
+    def is_neighbor(self, row: int, col: int, neighbor_row: int, neighbor_col: int):
+
+        neighbours = self.get_neighbors(row,col)
+
+        return (neighbor_row,neighbor_col) in neighbours
     
     def get_total_pipe_ends(self):
         ''' Retorna o número de pipe ends no tabuleiro. '''
@@ -239,6 +249,217 @@ class Board:
         return pipe_ends
 
 
+    def initialize_domains(self):
+
+        domain = [[[] for _ in range(self.col_count)] for _ in range(self.row_count)]
+
+        for i in range(0,self.row_count):
+            for j in range(0, self.col_count):
+
+                pipe_type = self.board[i][j][0]
+
+                if pipe_type == 'F':
+
+                    if (i,j) == (0,0):
+                        domain[i][j] = ['FB','FD']
+                    elif (i,j) == (0,self.col_count-1):
+                        domain[i][j] = ['FB','FE']
+                    elif (i,j) == (self.row_count-1,0):
+                        domain[i][j] = ['FC','FD']
+                    elif (i,j) == (self.row_count-1,self.col_count-1):
+                        domain[i][j] = ['FC','FE']
+                    elif i == 0:
+                        domain[i][j] = ['FB','FE','FD']
+                    elif i == self.row_count-1:
+                        domain[i][j] = ['FC','FE','FD']
+                    elif j == 0:
+                        domain[i][j] = ['FB','FC','FD']
+                    elif j == self.col_count-1:
+                        domain[i][j] = ['FB','FC','FE'] 
+                    else:
+                        domain[i][j] = ['FC','FB','FE','FD']
+                
+                if pipe_type == 'V':
+
+                    if (i,j) == (0,0):
+                        domain[i][j] = ['VB']
+                    elif (i,j) == (0,self.col_count-1):
+                        domain[i][j] = ['VE']
+                    elif (i,j) == (self.row_count-1,0):
+                        domain[i][j] = ['VD']
+                    elif (i,j) == (self.row_count-1,self.col_count-1):
+                        domain[i][j] = ['VC']
+                    elif i == 0:
+                        domain[i][j] = ['VB','VE']
+                    elif i == self.row_count-1:
+                        domain[i][j] = ['VC','VD']
+                    elif j == 0:
+                        domain[i][j] = ['VB','VD']
+                    elif j == self.col_count-1:
+                        domain[i][j] = ['VE','VC']
+                    else:
+                        domain[i][j] = ['VC','VB','VE','VD']
+                    
+                if pipe_type == 'B':
+                    
+                    if i == 0:
+                        domain[i][j] = ['BB']
+                    elif i == self.row_count-1:
+                        domain[i][j] = ['BC']
+                    elif j == 0:
+                        domain[i][j] = ['BD']
+                    elif j == self.col_count-1:
+                        domain[i][j] = ['BE']
+                    else:
+                        domain[i][j] = ['BC','BB','BE','BD']
+
+                if pipe_type == 'L':
+                    
+                    if i == 0:
+                        domain[i][j] = ['LH']
+                    elif i == self.row_count-1:
+                        domain[i][j] = ['LH']
+                    elif j == 0:
+                        domain[i][j] = ['LV']
+                    elif j == self.col_count-1:
+                        domain[i][j] = ['LV']
+                    else:
+                        domain[i][j] = ['LH','LV']
+                
+                self.board[i][j] = domain[i][j][0]
+
+        return domain
+
+    def edge_constraint(self, row: int, col: int):
+
+        ''' Verifica se o pipe em questão respeita as restrições das bordas do tabuleiro '''
+        
+        pipe = self.translate_pipe(row, col)
+
+        # top row
+        if row == 0 and pipe[0]:
+            return False
+        # bottom row
+        if row == self.row_count -1 and pipe[1]:
+            return False
+        # leftmost col
+        if col == 0 and pipe[2]:
+            return False
+        # rightmost col
+        if col == self.col_count - 1 and pipe[3]:
+            return False
+
+        return True
+    
+
+    def corner_constraints(self, row: int, col:int):
+
+        ''' Verifica se o pipe em questão respeita as restrições nos cantos do tabuleiro '''
+        pipe = self.translate_pipe(row,col)
+        
+        pipe_type = self.board[row][col][0]
+
+        if pipe_type not in ('F','V'):
+            return False
+
+        # top left 
+        if (row,col) == (0,0) and (pipe[0] or pipe[2]):
+            return False
+
+        # top right
+        if (row,col) == (0,self.col_count-1) and (pipe[0] or pipe[3]):
+            return False
+
+        # bottom left
+        if (row, col) == (self.row_count-1,0) and (pipe[1] or pipe[2]):
+            return False
+        
+        # bottom right
+        if (row,col) == (self.row_count-1, self.col_count-1) and (pipe[1] or pipe[3]):
+            return False
+        
+        return True
+
+
+    def initialize_queue(self):
+        ''' Inicializa a queue com todos os pares de variáveis para o algortimo AC3.'''
+        queue = set()  
+        for row in range(self.row_count):
+            for col in range(self.col_count):
+                for pipe in self.domain[row][col]:
+                    self.set_pipe(row, col, pipe)
+                    neighbours = self.get_neighbors(row, col)  
+                    for neighbour in neighbours:
+                        pair = (row, col, neighbour[0], neighbour[1])
+                        queue.add(pair)  
+        return list(queue)  
+
+
+
+    def ac3(self):
+        ''' Algoritmo AC-3 que garante consistência entre arcos, permitindo um pruning dos domínios das variáveis. '''
+        while self.queue:
+            row, col, neighbour_row, neighbour_col = self.queue.pop(0)
+        
+            if self.revise(row, col, neighbour_row, neighbour_col):
+                if len(self.domain[row][col]) == 0:
+                    return False
+                self.force_action(row,col)
+                for neighbour in self.get_neighbors(row, col):
+                    if neighbour != (neighbour_row, neighbour_col):
+                        self.queue.append((row, col, neighbour[0], neighbour[1]))
+        return True
+
+
+
+    def revise(self, row, col, neighbour_row, neighbour_col):
+        ''' Function responsible for checking constraints on pipes and removing them from domains if they do not satisfy the constraints. '''
+        revised = False
+        
+        # Make a copy of the domain list
+        domain_copy = self.domain[row][col][:]
+
+        for pipe1 in domain_copy:
+            self.board[row][col] = pipe1
+            constraint_succeeded = False
+            for pipe2 in self.domain[neighbour_row][neighbour_col]:
+                self.board[neighbour_row][neighbour_col] = pipe2
+                if self.is_neighbor(row, col, neighbour_row, neighbour_col):
+                    if self.check_constraints(row, col, neighbour_row , neighbour_col):
+                        constraint_succeeded = True
+                        break
+                else:
+                    constraint_succeeded = True
+            if not constraint_succeeded:
+                self.domain[row][col].remove(pipe1)
+                revised = True
+                    
+        return revised
+
+
+
+    def force_action(self, row: int, col: int):
+
+        ''' Função que aplica a ação para peças que têm apenas um possível valor. '''
+        self.board[row][col] = self.domain[row][col][0]
+
+        return self
+    
+    def set_pipe(self, row: int, col: int, pipe: str):
+
+        ''' Função que coloca um determinado pipe numa determinada posição do tabuleiro '''
+        self.board[row][col] = pipe
+
+        return self
+
+
+    def check_constraints(self, row: int, col: int, neighbour_row: int, neighbour_col: int):
+
+        compatibility = self.check_compatibility(row, col, neighbour_row-row, neighbour_col-col)
+        return compatibility
+
+
+
     def fix_corners(self):
         ''' Corrige a rotação das peças dos cantos do tabuleiro '''
         
@@ -249,7 +470,6 @@ class Board:
 
         if top_left[0] == 'V':
             self.board[0][0] = 'VB'
-            self.optimal[0][0] = 1
         else:
             
             if not self.is_connected(0,0)[0]:
@@ -257,21 +477,18 @@ class Board:
 
         if top_right[0] == 'V':
             self.board[0][self.col_count-1] = 'VE'
-            self.optimal[0][self.col_count-1] = 1
         else:
             if not self.is_connected(0,self.col_count-1)[0]:
                 self.board[0][self.col_count-1] = random.choice(['FB', 'FE'])
 
         if bottom_left[0] == 'V':
             self.board[self.row_count-1][0] = 'VD'
-            self.optimal[self.row_count-1][0] = 1
         else:
             if not self.is_connected(self.row_count-1,0)[0]:
                 self.board[self.row_count-1][0] = random.choice(['FC', 'FD'])
 
         if bottom_right[0] == 'V':
             self.board[self.row_count-1][self.col_count-1] = 'VC'
-            self.optimal[self.row_count-1][self.col_count-1] = 1
         else:
             if not self.is_connected(self.row_count-1,self.col_count-1)[0]:
                 self.board[self.row_count-1][self.col_count-1] = random.choice(['FC', 'FE'])
@@ -280,9 +497,7 @@ class Board:
 
 
     def fix_edges(self):
-        # fixes corners
-        self.fix_corners()
-
+        
         # bottom and top row
         for col in range(0, self.col_count):
             top_row = self.board[0][col]
@@ -295,10 +510,8 @@ class Board:
                     self.board[0][col] = random.choice(['VB', 'VE'])
                 elif top_row[0] == 'B':
                     self.board[0][col] = 'BB'
-                    self.optimal[0][col] = 1
                 elif top_row[0] == 'L':
                     self.board[0][col] = 'LH'
-                    self.optimal[0][col] = 1
 
                 if bottom_row == 'FB':
                     self.board[self.row_count - 1][col] = random.choice(['FC', 'FE', 'FD'])
@@ -306,10 +519,8 @@ class Board:
                     self.board[self.row_count - 1][col] = random.choice(['VC', 'VD'])
                 elif bottom_row[0] == 'B':
                     self.board[self.row_count - 1][col] = 'BC'
-                    self.optimal[self.row_count - 1][col] = 1
                 elif bottom_row[0] == 'L':
                     self.board[self.row_count - 1][col] = 'LH'
-                    self.optimal[self.row_count - 1][col] = 1
 
         # left and right columns            
         for row in range(0, self.row_count):
@@ -323,21 +534,20 @@ class Board:
                     self.board[row][0] = random.choice(['VB', 'VD'])
                 elif left_col[0] == 'B':
                     self.board[row][0] = 'BD'
-                    self.optimal[row][0] = 1
                 elif left_col[0] == 'L':
                     self.board[row][0] = 'LV'
-                    self.optimal[row][0] = 1
                 
-                if right_col[0] == 'FD':
+                if right_col == 'FD':
                     self.board[row][self.col_count - 1] = random.choice(['FB', 'FC', 'FE'])
                 elif right_col[0] == 'VD' or right_col == 'VB':
                     self.board[row][self.col_count - 1] = random.choice(['VC', 'VE'])
                 elif right_col[0] == 'B':
                     self.board[row][self.col_count - 1] = 'BE'
-                    self.optimal[row][self.col_count - 1] = 1
                 elif right_col[0] == 'L':
                     self.board[row][self.col_count - 1] = 'LV'
-                    self.optimal[row][self.col_count - 1] = 1
+
+        
+        self.fix_corners()
 
         return self
         
@@ -349,7 +559,7 @@ class PipeMania(Problem):
         super().__init__(PipeManiaState(board))
         
 
-    def actions(self, state: PipeManiaState):
+    def actions1(self, state: PipeManiaState):
         """Retorna uma lista de ações que podem ser executadas a
         partir do estado passado como argumento e faz pre-pruning em ações de pipes que estão nas bordas do puzzle."""
         
@@ -358,7 +568,7 @@ class PipeMania(Problem):
         for i in range(0,state.board.row_count):
             for j in range(0, state.board.col_count):
 
-                if state.board.optimal[i][j]:
+                if len(state.board.domain[i][j]) == 1:
                     continue
 
                 pipe_type, orientation = state.board.board[i][j]
@@ -457,6 +667,29 @@ class PipeMania(Problem):
 
         return actions
 
+
+    def actions(self, state: PipeManiaState):
+        """Retorna uma lista de ações que podem ser executadas a
+        partir do estado passado como argumento e faz pre-pruning em ações de pipes que estão nas bordas do puzzle."""
+        
+        actions = []
+
+        for i in range(0,state.board.row_count):
+            for j in range(0, state.board.col_count):
+
+                if len(state.board.domain[i][j]) == 1:
+                    continue
+
+                for value in state.board.domain[i][j]:
+                    actions.append((i,j,value[1]))
+                
+                #print(f"Peça {state.board.board[i][j]} com coordenadas {i},{j} e temos {len(actions)} ações possíveis: ")
+                #for l in actions:
+                    #print(l)
+
+        return actions
+
+
     def result(self, state: PipeManiaState, action):
         """Retorna o estado resultante de executar a 'action' sobre
         'state' passado como argumento. A ação a executar deve ser uma
@@ -480,8 +713,6 @@ class PipeMania(Problem):
         estão preenchidas de acordo com as regras do problema."""
         
         board = state.board
-        
-        # List comprehension to check if all positions on the board are connected
         all_connected = all(board.is_connected(i, j)[0] for i in range(board.row_count) for j in range(board.col_count))
 
         return all_connected
@@ -492,7 +723,6 @@ class PipeMania(Problem):
         """Função heuristica utilizada para a procura A*. Retorna número de pipe ends desconectadas"""
 
         board = node.state.board
-      
         connected_pipe_ends = sum(board.is_connected(i, j)[1] for i in range(board.row_count) for j in range(board.col_count))
     
         return board.total_pipe_ends - connected_pipe_ends
@@ -506,19 +736,22 @@ if __name__ == "__main__":
     
     input_board = Board.parse_instance() 
 
-    for i in range(0, input_board.row_count):
-        for j in range(0, input_board.col_count):
-            print(input_board.is_connected(i,j))
+    arc_consistency = input_board.ac3()
 
+    if arc_consistency == False:
+       print("There is no solution to this problem")
+       exit(1)
+
+    
     #visualizer(input_board.board, None)
 
-    input_board.fix_edges()
+    #input_board.fix_edges()
 
     
     #visualizer(input_board.board, None)
     
     problem = PipeMania(input_board)
-    solution = astar_search(problem)
+    solution = greedy_search(problem)
     if solution is not None:
         print("Solution: ")
         solution.state.board.print_board()
