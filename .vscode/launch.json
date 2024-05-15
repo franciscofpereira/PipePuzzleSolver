@@ -13,7 +13,7 @@
             "console": "integratedTerminal",
             "args": [
                 "<",
-                "${workspaceFolder}/src/test pipe 1-9/test-07.txt"
+                "${workspaceFolder}/src/test pipe 1-9/test-09.txt"
             ]
         }
     ]

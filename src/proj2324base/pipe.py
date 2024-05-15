@@ -8,11 +8,10 @@
 
 import sys
 from copy import deepcopy
-import random
+import numpy as np
 
-sys.path.append('/home/francisco/Documents/ProjetoIA/src/')
-from Visualizador.visualizer2 import visualizer
-
+#sys.path.append('/home/francisco/Documents/ProjetoIA/src/')
+#from Visualizador.visualizer2 import visualizer
 
 from search import (
     Problem,
@@ -29,11 +28,24 @@ class PipeManiaState:
 
     def __init__(self, board):
         self.board = board
+        result = [
+            tuple(self.board.board[i]) 
+            for i in range(0, self.board.row_count-1)
+        ]
+        self.hash = hash(tuple(result))   
         self.id = PipeManiaState.state_id
         PipeManiaState.state_id += 1
 
     def __lt__(self, other):
         return self.id < other.id
+    
+    def __eq__(self, other_state):
+        return isinstance(other_state, PipeManiaState) and other_state.board == self.board
+
+    def __hash__(self) -> int:
+        return self.hash       
+                
+        
     
     # TODO: outros metodos da classe
 
@@ -48,6 +60,8 @@ class Board:
         self.domain = self.initialize_domains()
         self.queue = self.initialize_queue()
         
+    def __eq__(self, other_board):
+        return isinstance(other_board, Board) and other_board.board == self.board
 
     @staticmethod
     def parse_instance():
@@ -88,7 +102,7 @@ class Board:
         if col > 0:
             horizontal_left = self.board[row][col - 1]
 
-        if col < self.col_count - 1:  # Check against the upper bound of columns
+        if col < self.col_count - 1: 
             horizontal_right = self.board[row][col + 1]
 
         return (horizontal_left, horizontal_right)
@@ -101,12 +115,12 @@ class Board:
         """Imprime a grelha do tabuleiro"""
         for row in range(self.row_count):
             for col in range(self.col_count):
-                print(f"{self.board[row][col]}\t", end='')  
-            print()
-
-        print()  
-
-
+                if col == self.col_count-1:
+                    print(f"{self.board[row][col]}\n", end='')  
+                else:
+                    print(f"{self.board[row][col]}\t", end='')  
+                
+        
     def translate_pipe(self, row: int, col: int):
         """ Devolve um tuplo do formato (CIMA, BAIXO, ESQUERDA, DIREITA) com entradas a 1 nas direções em
         em que o pipe é aberto e com entradas a 0 nas direções em que o pipe é fechado """
@@ -122,6 +136,23 @@ class Board:
 
         return pipe_translations[pipe_type][orientation]
     
+
+    def translate_pipe_no_coordinates(self, pipe: str):
+        """ Devolve um tuplo do formato (CIMA, BAIXO, ESQUERDA, DIREITA) com entradas a 1 nas direções em
+        em que o pipe é aberto e com entradas a 0 nas direções em que o pipe é fechado """
+
+        pipe_type = pipe[0] 
+        orientation = pipe[1]
+
+        pipe_translations = {
+        'F': {'C': (1, 0, 0, 0), 'B': (0, 1, 0, 0), 'E': (0, 0, 1, 0), 'D': (0, 0, 0, 1)},
+        'B': {'C': (1, 0, 1, 1), 'B': (0, 1, 1, 1), 'E': (1, 1, 1, 0), 'D': (1, 1, 0, 1)},
+        'V': {'C': (1, 0, 1, 0), 'B': (0, 1, 0, 1), 'E': (0, 1, 1, 0), 'D': (1, 0, 0, 1)},
+        'L': {'V': (1, 1, 0, 0), 'H': (0, 0, 1, 1)}
+        }
+
+        return pipe_translations[pipe_type][orientation]
+
 
     def is_connected(self, row: int, col: int):
         """ Retorna um tuplo no formato (BOOL, INT) em que BOOL é True se a peça está conectada e False caso contrário.
@@ -247,6 +278,48 @@ class Board:
                     pipe_ends += 2
 
         return pipe_ends
+
+
+    def initialize_domains1(self):
+
+        domain = [[[] for _ in range(self.col_count)] for _ in range(self.row_count)]
+
+        for i in range(0,self.row_count):
+            for j in range(0, self.col_count):
+
+                pipe_type = self.board[i][j][0]
+
+                if pipe_type == 'F':
+                    domain[i][j] = ['FC','FB','FE','FD']
+                if pipe_type == 'V':
+                    domain[i][j] = ['VC','VB','VE','VD']
+                if pipe_type == 'B':
+                    domain[i][j] = ['BC','BB','BE','BD']
+                if pipe_type == 'L':
+                    domain[i][j] = ['LH','LV']
+                
+        return domain
+
+    def edge_constraint(self, row: int, col: int):
+
+        ''' Verifica se o pipe em questão respeita as restrições das bordas do tabuleiro '''
+        
+        pipe = self.translate_pipe(row, col)
+
+        # top row
+        if row == 0 and pipe[0]:
+            return False
+        # bottom row
+        if row == self.row_count -1 and pipe[1]:
+            return False
+        # leftmost col
+        if col == 0 and pipe[2]:
+            return False
+        # rightmost col
+        if col == self.col_count - 1 and pipe[3]:
+            return False
+
+        return True
 
 
     def initialize_domains(self):
@@ -395,7 +468,6 @@ class Board:
         return list(queue)  
 
 
-
     def ac3(self):
         ''' Algoritmo AC-3 que garante consistência entre arcos, permitindo um pruning dos domínios das variáveis. '''
         while self.queue:
@@ -416,7 +488,6 @@ class Board:
         ''' Function responsible for checking constraints on pipes and removing them from domains if they do not satisfy the constraints. '''
         revised = False
         
-        # Make a copy of the domain list
         domain_copy = self.domain[row][col][:]
 
         for pipe1 in domain_copy:
@@ -429,7 +500,11 @@ class Board:
                         constraint_succeeded = True
                         break
                 else:
-                    constraint_succeeded = True
+                    # checks if every value in pipe2 domain needs connection with pipe1's position
+                    if self.needs_connection(row, col, neighbour_row, neighbour_col):
+                        constraint_succeeded = False   # the pipes are not neigbours and pipe2 needs a connection at position (row,col). we can remove pipe1
+                    else:
+                        constraint_succeeded = True    # if the connection is not strictly necessary we can't remove pipe1
             if not constraint_succeeded:
                 self.domain[row][col].remove(pipe1)
                 revised = True
@@ -438,8 +513,48 @@ class Board:
 
 
 
-    def force_action(self, row: int, col: int):
+    def needs_connection(self, row: int, col: int, neighbour_row: int, neighbour_col: int):
+        '''Função que verifica se os valores no domínio do pipe vizinho precisam de ligação vindo da direção do pipe com coordenadas (row,col).
+        Se todos precisarem e o pipe com coordenadas (row,col) não garantir essa ligação, então podemos removê-lo do domínio'''
 
+        relative_pos = (row - neighbour_row, col - neighbour_col)
+
+        # UP
+        if relative_pos == (-1, 0):
+            for pipe in self.domain[neighbour_row][neighbour_col]:
+                p = self.translate_pipe_no_coordinates(pipe)
+                if not p[0]:
+                    return False
+            return True
+
+        # DOWN
+        elif relative_pos == (1, 0):
+            for pipe in self.domain[neighbour_row][neighbour_col]:
+                p = self.translate_pipe_no_coordinates(pipe)
+                if not p[1]:
+                    return False
+            return True
+
+        # LEFT
+        elif relative_pos == (0, -1):
+            for pipe in self.domain[neighbour_row][neighbour_col]:
+                p = self.translate_pipe_no_coordinates(pipe)
+                if not p[2]:
+                    return False
+            return True
+
+        # RIGHT
+        elif relative_pos == (0, 1):
+            for pipe in self.domain[neighbour_row][neighbour_col]:
+                p = self.translate_pipe_no_coordinates(pipe)
+                if not p[3]:
+                    return False
+            return True
+
+        return False
+
+
+    def force_action(self, row: int, col: int):
         ''' Função que aplica a ação para peças que têm apenas um possível valor. '''
         self.board[row][col] = self.domain[row][col][0]
 
@@ -452,104 +567,8 @@ class Board:
 
         return self
 
-
     def check_constraints(self, row: int, col: int, neighbour_row: int, neighbour_col: int):
-
-        compatibility = self.check_compatibility(row, col, neighbour_row-row, neighbour_col-col)
-        return compatibility
-
-
-
-    def fix_corners(self):
-        ''' Corrige a rotação das peças dos cantos do tabuleiro '''
-        
-        top_left = self.board[0][0]
-        top_right = self.board[0][self.col_count-1]
-        bottom_left = self.board[self.row_count-1][0]
-        bottom_right = self.board[self.row_count-1][self.col_count-1]
-
-        if top_left[0] == 'V':
-            self.board[0][0] = 'VB'
-        else:
-            
-            if not self.is_connected(0,0)[0]:
-                self.board[0][0] = random.choice(['FB', 'FD'])
-
-        if top_right[0] == 'V':
-            self.board[0][self.col_count-1] = 'VE'
-        else:
-            if not self.is_connected(0,self.col_count-1)[0]:
-                self.board[0][self.col_count-1] = random.choice(['FB', 'FE'])
-
-        if bottom_left[0] == 'V':
-            self.board[self.row_count-1][0] = 'VD'
-        else:
-            if not self.is_connected(self.row_count-1,0)[0]:
-                self.board[self.row_count-1][0] = random.choice(['FC', 'FD'])
-
-        if bottom_right[0] == 'V':
-            self.board[self.row_count-1][self.col_count-1] = 'VC'
-        else:
-            if not self.is_connected(self.row_count-1,self.col_count-1)[0]:
-                self.board[self.row_count-1][self.col_count-1] = random.choice(['FC', 'FE'])
-
-        return self
-
-
-    def fix_edges(self):
-        
-        # bottom and top row
-        for col in range(0, self.col_count):
-            top_row = self.board[0][col]
-            bottom_row = self.board[self.row_count - 1][col]
-
-            if col > 0 and col < self.col_count - 1:
-                if top_row == 'FC':
-                    self.board[0][col] = random.choice(['FB', 'FE', 'FD'])
-                elif top_row == 'VC' or top_row == 'VD':
-                    self.board[0][col] = random.choice(['VB', 'VE'])
-                elif top_row[0] == 'B':
-                    self.board[0][col] = 'BB'
-                elif top_row[0] == 'L':
-                    self.board[0][col] = 'LH'
-
-                if bottom_row == 'FB':
-                    self.board[self.row_count - 1][col] = random.choice(['FC', 'FE', 'FD'])
-                elif bottom_row == 'VB'or bottom_row == 'VE':
-                    self.board[self.row_count - 1][col] = random.choice(['VC', 'VD'])
-                elif bottom_row[0] == 'B':
-                    self.board[self.row_count - 1][col] = 'BC'
-                elif bottom_row[0] == 'L':
-                    self.board[self.row_count - 1][col] = 'LH'
-
-        # left and right columns            
-        for row in range(0, self.row_count):
-            left_col = self.board[row][0]
-            right_col = self.board[row][self.col_count - 1]
-
-            if row > 0 and row < self.row_count - 1:
-                if left_col == 'FE':
-                    self.board[row][0] = random.choice(['FB', 'FC', 'FD'])
-                elif left_col == 'VE' or left_col == 'VC':
-                    self.board[row][0] = random.choice(['VB', 'VD'])
-                elif left_col[0] == 'B':
-                    self.board[row][0] = 'BD'
-                elif left_col[0] == 'L':
-                    self.board[row][0] = 'LV'
-                
-                if right_col == 'FD':
-                    self.board[row][self.col_count - 1] = random.choice(['FB', 'FC', 'FE'])
-                elif right_col[0] == 'VD' or right_col == 'VB':
-                    self.board[row][self.col_count - 1] = random.choice(['VC', 'VE'])
-                elif right_col[0] == 'B':
-                    self.board[row][self.col_count - 1] = 'BE'
-                elif right_col[0] == 'L':
-                    self.board[row][self.col_count - 1] = 'LV'
-
-        
-        self.fix_corners()
-
-        return self
+        return self.check_compatibility(row, col, neighbour_row-row, neighbour_col-col)
         
 
 
@@ -558,115 +577,6 @@ class PipeMania(Problem):
         """O construtor especifica o estado inicial."""
         super().__init__(PipeManiaState(board))
         
-
-    def actions1(self, state: PipeManiaState):
-        """Retorna uma lista de ações que podem ser executadas a
-        partir do estado passado como argumento e faz pre-pruning em ações de pipes que estão nas bordas do puzzle."""
-        
-        actions = []
-
-        for i in range(0,state.board.row_count):
-            for j in range(0, state.board.col_count):
-
-                if len(state.board.domain[i][j]) == 1:
-                    continue
-
-                pipe_type, orientation = state.board.board[i][j]
-
-                actions_to_remove = []
-
-                # Check if we are on the first row
-                if i == 0:
-                    if pipe_type == 'F':
-                        actions_to_remove.append('C')  
-                    elif pipe_type == 'V':
-                        actions_to_remove.append('C')
-                        actions_to_remove.append('D')
-                    elif pipe_type == 'B':
-                        actions_to_remove.append('C')
-                        actions_to_remove.append('E')
-                        actions_to_remove.append('D')
-                    elif pipe_type == 'L':
-                        actions_to_remove.append('V')  
-                
-                # Check if we are on the leftmost column
-                if j == 0:
-                    if pipe_type == 'F':
-                        actions_to_remove.append('E')
-                    elif pipe_type == 'B':
-                        actions_to_remove.append('C')
-                        actions_to_remove.append('B')
-                        actions_to_remove.append('E')
-                    elif pipe_type == 'V':
-                        actions_to_remove.append('C')
-                        actions_to_remove.append('E')
-                    elif pipe_type == 'L':
-                        actions_to_remove.append('H')  
-
-                # Check if we are on the rightmost column
-                if j == state.board.col_count - 1:
-                    if pipe_type == 'F':
-                        actions_to_remove.append('D')  # Rightward rotation
-                    elif pipe_type == 'B':
-                        actions_to_remove.append('C')
-                        actions_to_remove.append('B')
-                        actions_to_remove.append('D')
-                    elif pipe_type == 'V':
-                        actions_to_remove.append('B')
-                        actions_to_remove.append('D')
-                    elif pipe_type == 'L':
-                        actions_to_remove.append('H')
-
-                # Check if we are on the bottom row
-                if i == state.board.row_count - 1:
-                    if pipe_type == 'F':
-                        actions_to_remove.append('B')  # Downward rotation
-                    elif pipe_type == 'B':
-                        actions_to_remove.append('B')
-                        actions_to_remove.append('E')
-                        actions_to_remove.append('D')
-                    elif pipe_type == 'V':
-                        actions_to_remove.append('B')
-                        actions_to_remove.append('E')
-                    elif pipe_type == 'L':
-                        actions_to_remove.append('V')
-
-                # If pipe style is 'L', remove all rotation actions
-                if pipe_type == 'L':
-                    actions_to_remove += ['C', 'B', 'E', 'D']
-
-                    # Add the opposite orientation as an action
-                    if orientation == 'V':
-                        actions_to_remove.append('V')
-                    else:
-                        actions_to_remove.append('H')
-                else:
-                    actions_to_remove += ['V', 'H']
-
-                    if orientation == 'C':
-                        actions_to_remove.append('C')
-                    if orientation == 'B':
-                        actions_to_remove.append('B')
-                    if orientation == 'E':
-                        actions_to_remove.append('E')
-                    if orientation == 'D':
-                        actions_to_remove.append('D')
-
-                # Removes actions based on position and pipe_type
-                possible_actions = ['C', 'B', 'E', 'D', 'V', 'H']
-                for action in set(actions_to_remove):
-                    possible_actions.remove(action)
-
-                # Adds remaining actions to the list
-                for action in possible_actions:
-                    actions.append((i, j, action))
-
-                #print(f"Peça {state.board.board[i][j]} com coordenadas {i},{j} e temos {len(actions)} ações possíveis: ")
-                #for l in actions:
-                    #print(l)
-
-        return actions
-
 
     def actions(self, state: PipeManiaState):
         """Retorna uma lista de ações que podem ser executadas a
@@ -681,7 +591,9 @@ class PipeMania(Problem):
                     continue
 
                 for value in state.board.domain[i][j]:
-                    actions.append((i,j,value[1]))
+
+                    if value != state.board.board[i][j]:
+                        actions.append((i,j,value[1]))
                 
                 #print(f"Peça {state.board.board[i][j]} com coordenadas {i},{j} e temos {len(actions)} ações possíveis: ")
                 #for l in actions:
@@ -718,7 +630,6 @@ class PipeMania(Problem):
         return all_connected
 
 
-
     def h(self, node: Node):
         """Função heuristica utilizada para a procura A*. Retorna número de pipe ends desconectadas"""
 
@@ -728,7 +639,6 @@ class PipeMania(Problem):
         return board.total_pipe_ends - connected_pipe_ends
 
     # TODO: outros metodos da classe
-
 
 
 
@@ -751,9 +661,9 @@ if __name__ == "__main__":
     #visualizer(input_board.board, None)
     
     problem = PipeMania(input_board)
-    solution = greedy_search(problem)
+    solution = astar_search(problem)
     if solution is not None:
-        print("Solution: ")
+        #print("Solution: ")
         solution.state.board.print_board()
 
 

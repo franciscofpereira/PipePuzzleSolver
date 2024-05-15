@@ -278,12 +278,12 @@ def best_first_graph_search(problem, f, display=False):
     expandend_nodes = 0
     while frontier:
         node = frontier.pop()
-        print()
+        #print()
         expandend_nodes += 1
-        print(expandend_nodes)
-        print(f"f(n)={f(node)}")
+        #print(expandend_nodes)
+        #print(f"f(n)={f(node)}")
         #node.state.board.print_board()
-        #parent_state = node.parent.state.board.board if node.parent is not None else None
+        parent_state = node.parent.state.board.board if node.parent is not None else None
         #visualizer(node.state.board.board, parent_state)
         if problem.goal_test(node.state):
             if display:
