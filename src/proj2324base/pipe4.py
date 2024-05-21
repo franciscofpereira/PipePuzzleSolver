@@ -68,15 +68,9 @@ class Board:
         self.board = board
         self.row_count, self.col_count = len(self.board), len(self.board[0])
 
-    
-    @property
-    def num_pipes_to_visit(self):
-        return (self.board[:, :, 1] == 0).sum()
-    
     @property
     def optimal(self):
-        return (self.board[:, :, 1] == 2).sum()
-
+        return (self.board[:, :, 1] == 1).sum()
 
     def __eq__(self, other_board):
         return isinstance(other_board, Board) and (other_board.board == self.board).all()
@@ -149,16 +143,12 @@ class Board:
         """Imprime a grelha do tabuleiro"""
         for row in range(self.row_count):
             for col in range(self.col_count):
-                if self.board[row,col][1] == 2:
+                if self.board[row,col][1] == 1:
                     # Print in green
                     print("\033[32m" + f"{self.board[row][col][0]}", end='')
-                
-                elif self.board[row,col][1] == 0:
+                else:
                     # Print in white
                     print("\033[0m" + f"{self.board[row][col][0]}", end='')
-                else:
-                    # Print in yellow
-                    print("\033[33m" + f"{self.board[row][col][0]}", end='')
                 if col == self.col_count - 1:
                     print()  
                 else:
@@ -276,17 +266,10 @@ class Board:
             return (row,col+1)
 
 
-    def neighbors_are_optimal(self, row: int, col: int):
-
-        neighbors = self.get_neighbors(row,col)
-        all_optimal = True
-
-        for (x,y) in neighbors:
-            if self.board[x,y][1] != 2:
-                all_optimal = False
-                return all_optimal
-            
-        return all_optimal
+    def all_adjacents_uncertain(self, row: int, col: int):
+        ''' Returns True if all adjacents are not optimal. Returns False otherwhise.'''
+        adjacents = self.get_adjacent(row,col)
+        return all(self.board[row,col][1] == 0 for (row,col) in adjacents)
 
 
     def get_non_neighbors(self, row: int, col: int, pipe: str):
@@ -336,141 +319,129 @@ class Board:
   
     def check_constraints(self, row: int, col: int):
 
-        """
-        Check constraints for the pipe at the given position.
-        
-        Parameters:
-        - row: Row index of the pipe.
-        - col: Column index of the pipe.
-        - pipe: Pipe value we are considering
-        
-        Returns:
-        - 2 if the pipe is in its optimal configuration.
-        - 1 if we are uncertain about the optimality.
-        - 0 if the pipe is in an incorrect configuration.
-    """
-        
         possible_values = self.get_possible_values(row, col)
-        current_configuration = self.board[row,col][0]
-        optimal_actions = []
-        uncertain_actions = []
-
-        for pipe in possible_values:
-
-            wrong_move = False
-
-            # Pipe is on the edge of the board
-            if row == 0 or col == 0 or row == self.row_count - 1 or col == self.col_count - 1:
-                
-                # Pipe cannot be on the edge
-                if not self.edge_constraint(row, col, pipe):
-                    continue
-                
-                # Adjacent pipes
-                adjacent = self.get_adjacent(row, col)
-
-                for (a_row, a_col) in adjacent:
-
-                    adjacent_confidence = self.board[a_row, a_col][1]
-                    adjacent_pipe = self.board[a_row,a_col][0]
-
-                    # If adjacent pipe is on the edge and optimal
-                    if (a_row == 0 or a_col == 0 or a_row == self.row_count - 1 or a_col == self.col_count - 1) and adjacent_confidence == 2:
-                    
-                        if self.points_towards(a_row, a_col, row, col, adjacent_pipe):
-                            # they match
-                            if self.check_compatibility(row, col, pipe, a_row, a_col, adjacent_pipe):
-                                optimal_actions.append((row,col,pipe[1]))
-                                return optimal_actions
-                            # pipe does not point towards optimal adjacent pipe
-                            else:
-                                wrong_move = True
-                                break 
-                        else:
-                            # adjacent pipe does not point to pipe but pipe points to adjacent
-                            if self.points_towards(row, col, a_row, a_col, pipe):
-                                wrong_move = True
-                                break 
-                            
-                            # both don't point to each other
-                            else:
-                                
-                                if pipe[0] != 'F':
-                                    optimal_actions.append((row,col,pipe[1]))
-                                    return optimal_actions
-                            
-                    # If adjacent pipe is optimal and not on the edge
-                    elif adjacent_confidence == 2:
-                       
-                        if self.points_towards(a_row, a_col, row, col, adjacent_pipe): 
-                            if not self.check_compatibility(row, col, pipe, a_row, a_col, adjacent_pipe):
-                                wrong_move = True
-                                break 
-                            else:
-
-                                if pipe[0] != 'V':
-                                    optimal_actions.append((row,col,pipe[1]))
-                                    return optimal_actions
-                                
-                        else:
-                            if self.points_towards(row, col, a_row, a_col, pipe):
-                                wrong_move = True
-                                break 
-
-                if wrong_move:
-                    continue           
         
-                # If no clear optimal or incorrect configuration, return uncertain
+        # If all adjacents are uncertain we return all possible actions
+        if self.all_adjacents_uncertain(row,col):
+            return [(row,col,pipe[1]) for pipe in possible_values]
+        
+        else:
+            
+            current_configuration = self.board[row,col][0]
+            num_connections_to_optimal = self.get_num_connections_to_be_optimal(self.board[row,col][0][0])
+            adjacents = self.get_adjacent(row,col)
+
+            optimal_actions = []
+            uncertain_actions = []
+            
+
+            for pipe in possible_values:
+
+                wrong_move = False
+
+                # if pipe is on edge
+                if row == 0 or col == 0 or row == self.row_count - 1 or col == self.col_count - 1:
+                
+                    # Pipe cannot be on the edge
+                    if not self.edge_constraint(row, col, pipe):
+                        continue
+                
+
+                    connected_ends = 0
+
+                    for (adj_row,adj_col) in adjacents:
+
+                        adj_is_optimal = self.board[adj_row, adj_col][1]
+                        adj_pipe = self.board[adj_row,adj_col][0]
+
+                        if adj_is_optimal and (adj_row == 0 or adj_col == 0 or adj_row == self.row_count - 1 or adj_col == self.col_count - 1): 
+                            
+                            if self.points_towards(adj_row, adj_col, row, col, adj_pipe):
+                            
+                                if self.check_compatibility(row, col, pipe, adj_row, adj_col, adj_pipe):
+                                    optimal_actions.append((row,col,pipe[1]))
+                                    return optimal_actions
+            
+                                else:
+                                    wrong_move = True
+                                    break 
+                            else:
+                            
+                                if self.points_towards(row, col, adj_row, adj_col, pipe):
+                                    wrong_move = True
+                                    break 
+                                
+                                else:
+                                    
+                                    if pipe[0] != 'F':
+                                        optimal_actions.append((row,col,pipe[1]))
+                                        return optimal_actions
+                                    
+                        # If adjacent pipe is optimal and not on the edge
+                        elif adj_is_optimal:
+                        
+                            if self.points_towards(adj_row, adj_col, row, col, adj_pipe): 
+                                if not self.check_compatibility(row, col, pipe, adj_row, adj_col, adj_pipe):
+                                    wrong_move = True
+                                    break 
+                                else:
+
+                                    if pipe[0] != 'V':
+                                        optimal_actions.append((row,col,pipe[1]))
+                                        return optimal_actions
+                                    
+                            else:
+                                if self.points_towards(row, col, adj_row, adj_col, pipe):
+                                    wrong_move = True
+                                    break
+                    
+                else:
+
+                    connected_ends = 0
+
+                    for (adj_row,adj_col) in adjacents:
+
+                        adj_is_optimal = self.board[adj_row, adj_col][1]
+                        adj_pipe = self.board[adj_row,adj_col][0]
+
+                        
+
+                        if self.points_towards(adj_row, adj_col, row, col, adj_pipe):
+
+                            if self.check_compatibility(row, col, pipe, adj_row, adj_col, adj_pipe):
+                                connected_ends += 1
+
+                                if connected_ends == num_connections_to_optimal:
+                                    optimal_actions.append((row,col,pipe[1]))
+                                    return optimal_actions
+                            
+                            else:
+                                wrong_move = True
+                                break
+                        
+                        elif self.points_towards(row, col, adj_row, adj_col, pipe):
+                            wrong_move = True
+                            break
+                    
+                if wrong_move:
+                    continue
+
                 if pipe != current_configuration:
                     uncertain_actions.append((row,col,pipe[1]))
-            
-            else:        
-                    
-                # Pipe is not on the edge
-                adjacent = self.get_adjacent(row, col)
-                
-                uncertain = False
-                num_pipe_ends = self.get_num_pipe_ends(pipe)
 
-                for (a_row, a_col) in adjacent:
-                    adjacent_pipe_confidence = self.board[a_row, a_col][1]
-                    adjacent_pipe = self.board[a_row,a_col][0]
-                    connected_ends = 0
-                
-                    
-                    # Adjacent pipe is optimal
-                    if adjacent_pipe_confidence == 2:
-                        # Check if adjacent pipe points towards current pipe
-                        if self.points_towards(a_row, a_col, row, col, adjacent_pipe):
-                            # Check compatibility between pipes
-                            if not self.check_compatibility(row, col, pipe, a_row, a_col, adjacent_pipe):
-                                wrong_move = True
-                                break 
-                            else:
-                                connected_ends += 1
-                                if connected_ends == num_pipe_ends:
-                                    optimal_actions.append((row,col,pipe[1]))
-                                    return optimal_actions
-                                
-                    # If adjacent doesn't point to current but current points to adjacent, it's wrong
-                        elif self.points_towards(row, col, a_row, a_col, pipe):
-                                wrong_move = True
-                                break 
-                        else:
-                            uncertain = True # both don't face each other, not certain if optimal or not
-                            
-                    elif adjacent_pipe_confidence == 1:
-                        uncertain = True
+            return uncertain_actions
 
-                if wrong_move:
-                    continue       
 
-                # If pipe is uncertain and is different from current pipe
-                if uncertain and pipe != current_configuration:
-                    uncertain_actions.append((row,col,pipe[1]))
-            
-        # Default to uncertain if no conclusive determination
-        return uncertain_actions
+
+    def get_num_connections_to_be_optimal(self, pipe_type: str):
+
+        ''' Returns the number of adjacent optimal pipes we need to connect to to infer optimality'''
+        if pipe_type == 'F' or pipe_type == 'L':
+            return 1
+        elif pipe_type == 'V':
+            return 2
+        else:
+            return 3
 
 
     def edge_constraint(self, row: int, col: int, pipe: str):
@@ -495,34 +466,8 @@ class Board:
         return True
     
 
-    def corner_constraints(self, row: int, col: int, pipe: str):
-
-        ''' Verifica se o pipe em questão respeita as restrições nos cantos do tabuleiro '''
-        pipe = self.translate_pipe(pipe)
-        
-        pipe_type = pipe[0]
-
-        if pipe_type not in ('F','V'):
-            return False
-
-        # top left 
-        if (row,col) == (0,0) and (pipe[0] or pipe[2]):
-            return False
-
-        # top right
-        if (row,col) == (0,self.col_count-1) and (pipe[0] or pipe[3]):
-            return False
-
-        # bottom left
-        if (row, col) == (self.row_count-1,0) and (pipe[1] or pipe[2]):
-            return False
-        
-        # bottom right
-        if (row,col) == (self.row_count-1, self.col_count-1) and (pipe[1] or pipe[3]):
-            return False
-        
-        return True
-    
+   
+ 
     def check_compatibility(self, row1: int, col1: int, pipe1: str, row2: int, col2: int, pipe2: str):
         
         ''' Verifica se o pipe1 é compatível com o pipe2. A posição do pipe2 em relação ao pipe1 é calculada 
@@ -632,23 +577,23 @@ class Board:
             if col > 0 and col < self.col_count - 1:
 
                 if top_row[0][0] == 'F':
-                    self.board[0, col] = ('FB',1)
+                    self.board[0, col] = ('FB',0)
                 elif top_row[0][0] == 'V':
-                    self.board[0, col] = ('VB',1)
+                    self.board[0, col] = ('VB',0)
                 elif top_row[0][0] == 'B':
-                    self.board[0, col] = ('BB',2)
+                    self.board[0, col] = ('BB',1)
                 elif top_row[0][0] == 'L':
-                    self.board[0, col] = ('LH', 2)
+                    self.board[0, col] = ('LH', 1)
                
                 
                 if bottom_row[0][0] == 'F':
-                    self.board[self.row_count - 1,col] = ('FC',1)
+                    self.board[self.row_count - 1,col] = ('FC',0)
                 elif bottom_row[0][0] == 'V':
-                    self.board[self.row_count - 1, col] = ('VC',1)
+                    self.board[self.row_count - 1, col] = ('VC',0)
                 elif bottom_row[0][0] == 'B':
-                    self.board[self.row_count - 1,col] = ('BC',2)
+                    self.board[self.row_count - 1,col] = ('BC',1)
                 elif bottom_row[0][0] == 'L':
-                    self.board[self.row_count - 1,col] = ('LH',2)
+                    self.board[self.row_count - 1,col] = ('LH',1)
                  
                 
         # left and right columns            
@@ -659,22 +604,22 @@ class Board:
             if row > 0 and row < self.row_count -1:
                 
                 if left_col[0][0] == 'F':
-                    self.board[row, 0] = ('FB',1)
+                    self.board[row, 0] = ('FB',0)
                 elif left_col[0][0] == 'V':
-                    self.board[row, 0] = ('VD',1)
+                    self.board[row, 0] = ('VD',0)
                 elif left_col[0][0] == 'B':
-                    self.board[row, 0] = ('BD',2)
+                    self.board[row, 0] = ('BD',1)
                 elif left_col[0][0] == 'L':
-                    self.board[row, 0] = ('LV',2)
+                    self.board[row, 0] = ('LV',1)
                 
                 if right_col[0][0] == 'F':
-                    self.board[row, self.col_count-1] = ('FB',1)
+                    self.board[row, self.col_count-1] = ('FB',0)
                 elif right_col[0][0] == 'V':
-                    self.board[row, self.col_count-1] = ('VE',1)
+                    self.board[row, self.col_count-1] = ('VE',0)
                 elif right_col[0][0] == 'B':
-                    self.board[row, self.col_count - 1] = ('BE',2)
+                    self.board[row, self.col_count - 1] = ('BE',1)
                 elif right_col[0][0] == 'L':
-                    self.board[row, self.col_count - 1] = ('LV',2)
+                    self.board[row, self.col_count - 1] = ('LV',1)
         
         self.fix_corners()
 
@@ -683,23 +628,28 @@ class Board:
     def fix_corners(self):
 
         if self.board[0,0][0][0] == 'V':
-            self.board[0,0] = ('VB',2)
+            self.board[0,0] = ('VB',1)
         if self.board[0,0][0][0] == 'F':
-            self.board[0,0] = ('FB',1)
+            self.board[0,0] = ('FB',0)
         if self.board[0,self.col_count-1][0][0] == 'V':
-            self.board[0,self.col_count-1] = ('VE',2)
+            self.board[0,self.col_count-1] = ('VE',1)
         if self.board[0,self.col_count-1][0][0] == 'F':
-            self.board[0,self.col_count-1] = ('FB',1)
+            self.board[0,self.col_count-1] = ('FB',0)
         if self.board[self.row_count-1,0][0][0] == 'V':
-            self.board[self.row_count-1,0] = ('VD',2)
+            self.board[self.row_count-1,0] = ('VD',1)
         if self.board[self.row_count-1,0][0][0] == 'F':
-            self.board[self.row_count-1,0] = ('FC',1)
+            self.board[self.row_count-1,0] = ('FC',0)
         if self.board[self.row_count-1,self.col_count-1][0][0] == 'V':
-            self.board[self.row_count-1,self.col_count-1] = ('VC',2)
+            self.board[self.row_count-1,self.col_count-1] = ('VC',1)
         if self.board[self.row_count-1,self.col_count-1][0][0] == 'F':
-            self.board[self.row_count-1,self.col_count-1] = ('FC',1)
+            self.board[self.row_count-1,self.col_count-1] = ('FC',0)
         
         return self
+    
+
+    
+
+
     
 
 class PipeMania(Problem):
@@ -716,28 +666,43 @@ class PipeMania(Problem):
         uncertain_actions = []
         coordinates_frequency = {}
 
-        for row in range(state.board.row_count):
-            for col in range(state.board.col_count):
-                
-                # Prioritize pipes that haven't been assigned a value yet
-                #if state.board.num_pipes_to_visit > 0 and state.board.board[row,col][1] != 0:
-                #   continue
-                # If the pipe is optimal we don't move it
-                if state.board.board[row,col][1] == 2:
-                    continue
-                
-                # returns possible actions
-                possible_actions = state.board.check_constraints(row, col)
-                        
-                if len(possible_actions) == 1:
-                    optimal_actions.append(possible_actions[0])
-            
-                elif len(possible_actions) > 1:  
-                    uncertain_actions.extend(possible_actions)
-                    coordinates_frequency[(row, col)] = coordinates_frequency.get((row, col), 0) + 1
+        top, bottom, left, right = 0, state.board.row_count-1, 0, state.board.col_count-1
+        coordinates = []
+        while top <= bottom and left <= right:
+            for i in range(left, right + 1):
+                coordinates.append((top, i))  # Append tuple (row, col)
+            top += 1
+            for i in range(top, bottom + 1):
+                coordinates.append((i, right))  # Append tuple (row, col)
+            right -= 1
+            if top <= bottom:
+                for i in range(right, left - 1, -1):
+                    coordinates.append((bottom, i))  # Append tuple (row, col)
+                bottom -= 1
+            if left <= right:
+                for i in range(bottom, top - 1, -1):
+                    coordinates.append((i, left))  # Append tuple (row, col)
+                left += 1
+        
 
-                else:
-                    continue
+        for (row,col) in coordinates:   
+            
+            # If the pipe is optimal we don't generate actions for it
+            if state.board.board[row,col][1] == 1:
+                continue
+            
+            # returns possible actions
+            possible_actions = state.board.check_constraints(row, col)
+                    
+            if len(possible_actions) == 1:
+                optimal_actions.append(possible_actions[0])
+        
+            elif len(possible_actions) > 1:  
+                uncertain_actions.extend(possible_actions)
+                coordinates_frequency[(row, col)] = coordinates_frequency.get((row, col), 0) + 1
+
+            else:
+                continue
 
         # Sort uncertain actions by frequency of coordinates
         uncertain_actions.sort(key=lambda action: coordinates_frequency.get((action[0], action[1]), 0))
@@ -777,7 +742,7 @@ class PipeMania(Problem):
                 pipe_x, pipe_y, new_orientation = actions[i]
                 pipe_type = new_board.board[pipe_x, pipe_y][0][0]
                 updated_pipe = pipe_type + new_orientation
-                new_board.board[pipe_x,pipe_y] = (updated_pipe, 2)
+                new_board.board[pipe_x,pipe_y] = (updated_pipe, 1)
                 print(f"pipe at {pipe_x,pipe_y} rotated. Optimal value is {updated_pipe}")
 
         return PipeManiaState(new_board)
@@ -815,7 +780,7 @@ if __name__ == "__main__":
     
     problem = PipeMania(input_board)
     #solution =  depth_limited_search(problem, input_board.row_count**2)
-    solution = depth_first_tree_search(problem)
+    solution = breadth_first_tree_search(problem)
     if solution is not None:
         print("Solution: ")
         solution.state.board.print_board()
