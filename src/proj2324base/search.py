@@ -212,6 +212,7 @@ def depth_first_tree_search(problem):
 
     while frontier:
         node = frontier.pop()
+        node.state.board.print_board_with_colors()
         if problem.goal_test(node.state):
             return node
         frontier.extend(node.expand(problem))
@@ -275,16 +276,13 @@ def best_first_graph_search(problem, f, display=False):
     frontier = PriorityQueue('min', f)
     frontier.append(node)
     explored = set()
-    expandend_nodes = 0
+    
     while frontier:
         node = frontier.pop()
-        #print()
-        expandend_nodes += 1
-        #print(expandend_nodes)
-        #print(f"f(n)={f(node)}")
-        #node.state.board.print_board()
+      
+        node.state.board.print_board_with_colors()
         parent_state = node.parent.state.board.board if node.parent is not None else None
-        #visualizer(node.state.board.board, parent_state)
+        
         if problem.goal_test(node.state):
             if display:
                 print(len(explored), "paths have been expanded and", len(frontier), "paths remain in the frontier")
