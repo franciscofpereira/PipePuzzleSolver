@@ -9,11 +9,11 @@
             "name": "Python Debugger: Pipe Debugger",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/src/proj2324base/pipe5.py",
+            "program": "${workspaceFolder}/src/proj2324base/pipe.py",
             "console": "integratedTerminal",
             "args": [
                 "<",
-                "${workspaceFolder}/src/test pipe 10x10-50x50/test-20x20.txt"
+                "${workspaceFolder}/src/test pipe 10x10-50x50/test-15x15.txt"
             ]
         }
     ]

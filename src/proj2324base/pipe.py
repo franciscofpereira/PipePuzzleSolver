@@ -7,11 +7,16 @@
 # 104182 Tiago Romão
 
 import sys
+import os
 from copy import deepcopy
 import numpy as np
+from collections import OrderedDict, deque
 
-#sys.path.append('/home/francisco/Documents/ProjetoIA/src/')
-#from Visualizador.visualizer2 import visualizer
+current_dir = os.path.dirname(os.path.abspath(__file__))
+src_dir = os.path.dirname(current_dir)
+sys.path.append(src_dir)
+
+from Visualizador.visualizer import visualizer
 
 from search import (
     Problem,
@@ -21,17 +26,31 @@ from search import (
     depth_first_tree_search,
     greedy_search,
     recursive_best_first_search,
+    depth_limited_search,
+    depth_first_graph_search
 )
+
+pipe_translations = {
+        'F': {'C': (1, 0, 0, 0), 'B': (0, 1, 0, 0), 'E': (0, 0, 1, 0), 'D': (0, 0, 0, 1)},
+        'B': {'C': (1, 0, 1, 1), 'B': (0, 1, 1, 1), 'E': (1, 1, 1, 0), 'D': (1, 1, 0, 1)},
+        'V': {'C': (1, 0, 1, 0), 'B': (0, 1, 0, 1), 'E': (0, 1, 1, 0), 'D': (1, 0, 0, 1)},
+        'L': {'V': (1, 1, 0, 0), 'H': (0, 0, 1, 1)}
+        }
+
+pipe_domains = {
+        'F': ['FC','FB', 'FE', 'FD'],
+        'B': ['BC','BB', 'BE', 'BD'],
+        'V': ['VC','VB', 'VE', 'VD'],
+        'L': ['LV','LH'],
+        } 
+
 
 class PipeManiaState:
     state_id = 0
 
     def __init__(self, board):
         self.board = board
-        result = [
-            tuple(self.board.board[i]) 
-            for i in range(0, self.board.row_count-1)
-        ]
+        result = [tuple(map(tuple, row)) for row in self.board.board]
         self.hash = hash(tuple(result))   
         self.id = PipeManiaState.state_id
         PipeManiaState.state_id += 1
@@ -45,23 +64,23 @@ class PipeManiaState:
     def __hash__(self) -> int:
         return self.hash       
                 
-        
-    
-    # TODO: outros metodos da classe
-
-
+          
 class Board:
     """ Representação interna de uma grelha de PipeMania. """
     def __init__(self, board):
         self.board = board
-        self.row_count = len(board)
-        self.col_count = len(board[0]) if board else 0
+        self.row_count, self.col_count = len(self.board), len(self.board[0])
+        self.spiral_order = self.iterate_borders()
+        self.next_actions = None
+        self.board_size = self.row_count**2
         self.total_pipe_ends = self.get_total_pipe_ends()
-        self.domain = self.initialize_domains()
-        self.queue = self.initialize_queue()
         
+    @property
+    def optimal(self):
+        return (self.board[:, :, 1] == 1).sum()
+
     def __eq__(self, other_board):
-        return isinstance(other_board, Board) and other_board.board == self.board
+        return isinstance(other_board, Board) and (other_board.board == self.board).all()
 
     @staticmethod
     def parse_instance():
@@ -75,114 +94,62 @@ class Board:
         board = []
         for line in sys.stdin:
             row = line.strip().split()
-            board.append(row)
-        return Board(board)
+            row_with_flags = [(pipe, 0) for pipe in row]
+            board.append(row_with_flags)
     
-    def adjacent_vertical_values(self, row: int, col: int) -> (str, str):
-        """ Devolve os valores imediatamente acima e abaixo,
-        respectivamente. """
-        vertical_up = None
-        vertical_down = None
+        board_matrix = np.array(board, dtype=object)
 
-        if row > 0:
-            vertical_up = self.board[row - 1][col]
-
-        if row < self.row_count - 1:  # Check against the upper bound of rows
-            vertical_down = self.board[row + 1][col]
-
-        return (vertical_up, vertical_down)
-
-
-    def adjacent_horizontal_values(self, row: int, col: int) -> (str, str):
-        """ Devolve os valores imediatamente à esquerda e à direita,
-        respectivamente. """
-        horizontal_left = None
-        horizontal_right = None
-
-        if col > 0:
-            horizontal_left = self.board[row][col - 1]
-
-        if col < self.col_count - 1: 
-            horizontal_right = self.board[row][col + 1]
-
-        return (horizontal_left, horizontal_right)
+        return Board(board_matrix)
     
-    def get_value(self, row: int, col: int):
-        """ Devolve o valor nas coordenadas dadas como argumento """
-        return self.board[row][col]
-    
+
     def print_board(self):
         """Imprime a grelha do tabuleiro"""
         for row in range(self.row_count):
             for col in range(self.col_count):
                 if col == self.col_count-1:
-                    print(f"{self.board[row][col]}\n", end='')  
+                    print(f"{self.board[row,col][0]}\n", end='')  
                 else:
-                    print(f"{self.board[row][col]}\t", end='')  
+                    print(f"{self.board[row,col][0]}\t", end='')  
+
 
     def print_board_with_colors(self):
         """Imprime a grelha do tabuleiro"""
         for row in range(self.row_count):
             for col in range(self.col_count):
-                if len(self.domain[row][col]) == 1:
+                if self.board[row,col][1] == 1:
                     # Print in green
-                    print("\033[32m" + f"{self.board[row][col]}", end='')
+                    print("\033[32m" + f"{self.board[row][col][0]}", end='')
                 else:
                     # Print in white
-                    print("\033[0m" + f"{self.board[row][col]}", end='')
-
+                    print("\033[0m" + f"{self.board[row][col][0]}", end='')
                 if col == self.col_count - 1:
-                    print()  # New line at the end of each row
+                    print()  
                 else:
-                    print('\t', end='')  # Tab separator for columns
-                
-        
-    def translate_pipe(self, row: int, col: int):
-        """ Devolve um tuplo do formato (CIMA, BAIXO, ESQUERDA, DIREITA) com entradas a 1 nas direções em
-        em que o pipe é aberto e com entradas a 0 nas direções em que o pipe é fechado """
+                    print('\t', end='')
+        print()
 
-        pipe_type, orientation = self.board[row][col]
+    def get_domain(self, row: int, col: int):
+        pipe_type = self.board[row,col][0][0]
+        return pipe_domains[pipe_type]
 
-        pipe_translations = {
-        'F': {'C': (1, 0, 0, 0), 'B': (0, 1, 0, 0), 'E': (0, 0, 1, 0), 'D': (0, 0, 0, 1)},
-        'B': {'C': (1, 0, 1, 1), 'B': (0, 1, 1, 1), 'E': (1, 1, 1, 0), 'D': (1, 1, 0, 1)},
-        'V': {'C': (1, 0, 1, 0), 'B': (0, 1, 0, 1), 'E': (0, 1, 1, 0), 'D': (1, 0, 0, 1)},
-        'L': {'V': (1, 1, 0, 0), 'H': (0, 0, 1, 1)}
-        }
-
-        return pipe_translations[pipe_type][orientation]
     
-
-    def translate_pipe_no_coordinates(self, pipe: str):
+    def translate_pipe(self, pipe: str):
         """ Devolve um tuplo do formato (CIMA, BAIXO, ESQUERDA, DIREITA) com entradas a 1 nas direções em
         em que o pipe é aberto e com entradas a 0 nas direções em que o pipe é fechado """
+        return pipe_translations[pipe[0]][pipe[1]]
 
-        pipe_type = pipe[0] 
-        orientation = pipe[1]
-
-        pipe_translations = {
-        'F': {'C': (1, 0, 0, 0), 'B': (0, 1, 0, 0), 'E': (0, 0, 1, 0), 'D': (0, 0, 0, 1)},
-        'B': {'C': (1, 0, 1, 1), 'B': (0, 1, 1, 1), 'E': (1, 1, 1, 0), 'D': (1, 1, 0, 1)},
-        'V': {'C': (1, 0, 1, 0), 'B': (0, 1, 0, 1), 'E': (0, 1, 1, 0), 'D': (1, 0, 0, 1)},
-        'L': {'V': (1, 1, 0, 0), 'H': (0, 0, 1, 1)}
-        }
-
-        return pipe_translations[pipe_type][orientation]
-
-
-    def is_connected(self, row: int, col: int):
+    
+    def is_connected(self, row: int, col: int, pipe: str):
         """ Retorna um tuplo no formato (BOOL, INT) em que BOOL é True se a peça está conectada e False caso contrário.
         O valor de INT indica o número de aberturas da peça que estão conectadas. """
         
         connected_ends = 0
-        pipe_type = self.board[row][col][0]
+        pipe_type = pipe[0]
         
-        neighbours = self.get_neighbors(row, col)
+        neighbours = self.get_neighbors(row, col, pipe)
 
-        for neighbour in neighbours:    
-            x_offset = neighbour[0] - row 
-            y_offset = neighbour[1] - col 
-            if self.check_compatibility(row, col, x_offset, y_offset):
+        for n in neighbours:    
+            if self.check_compatibility(row, col, pipe, n[0], n[1], self.board[n[0],n[1]][0]):
                 connected_ends += 1
 
         if pipe_type == 'F':
@@ -197,35 +164,149 @@ class Board:
             return (False, connected_ends)
 
 
-    def sum_connected_pipes(self):
-        """Retorna o número de pipes conectados no Board."""
+    def get_neighbors(self, row: int, col: int, pipe: str):
+        ''' Retorna uma lista com tuplos com as coordenadas dos pipes vizinhos nas direções em que o pipe tem aberturas '''
         
-        connected_pipes_count = 0
-        for i in range(0, self.row_count):
-            for j in range(0, self.col_count):
+        pipe = self.translate_pipe(pipe)
+        
+        neighbours = []
 
-                if self.is_connected(i,j)[0]:
-                    connected_pipes_count += 1
+        if pipe[0] and row - 1 >= 0:
+            neighbours.append((row - 1, col))
+           
+        if pipe[1] and row + 1 < self.row_count:
+            neighbours.append((row + 1, col))
 
-        return connected_pipes_count
+        if pipe[2] and col - 1 >= 0:
+            neighbours.append((row, col - 1))
 
+        if pipe[3] and col + 1 < self.col_count:
+            neighbours.append((row, col + 1))
+
+        return neighbours
     
-    def check_compatibility(self, row: int, col: int, x_offset: int, y_offset):
-        
-        ''' Verifica se o pipe é compatível com a peça adjacente. A posição da peça adjacente é expressa por x_offset
-        quando à esquerda ou direita ou por y_offset quando acima ou abaixo.'''
-        
-        p1 = self.translate_pipe(row,col)
-        p2 = self.translate_pipe(row + x_offset, col + y_offset)  if  (0 <= row + x_offset < self.row_count and 0 <= col + y_offset < self.col_count) else (0,0,0,0)
 
-        pipe1_type = self.board[row][col][0]
-        pipe2_type = self.board[row+x_offset][col+y_offset][0]
+    def get_adjacent(self, row: int, col: int):
+
+        ''' Retorna uma lista com tuplos com as coordenadas dos pipes adjacentes '''
+        adjacent = []
+
+        # UP
+        if row-1 >= 0:
+            adjacent.append((row-1,col))
+        # DOWN
+        if row + 1 < self.row_count:
+             adjacent.append((row+1,col))
+        # LEFT
+        if col - 1 >= 0:
+            adjacent.append((row, col-1))
+        # RIGHT
+        if col + 1 < self.col_count:
+            adjacent.append((row, col+1))
+        
+        return adjacent
+    
+
+    def get_suboptimal_adjacents(self, row1: int, col1: int , pipe1: str):
+        
+        ''' Retorna uma lista com tuplos das coordenadas dos adjacentes que não estão ótimos '''
+        adjacents = self.get_adjacent(row1,col1)
+        suboptimal_adjacents = []
+
+        for (row2,col2) in adjacents:
+            if not self.board[row2,col2][1]:
+                suboptimal_adjacents.append((row2,col2))
+        return suboptimal_adjacents
+    
+                            
+    def get_possible_values(self ,row1 ,col1 ,pipe1 ,row2 ,col2):
+
+        ''' Função que recebe pipe1 que está ótimo e posição do seu adjacente pipe2 e retorna os valores de pipe2 que encaixam localmente com pipe1 '''
+        
+        pipe_domain = self.get_domain(row2, col2)
+        possible_values = []
+
+        for value in pipe_domain:
+
+            if row2 == 0 or row2 == self.row_count-1 or col2 == 0 or col2 == self.col_count-1:
+                
+                if not self.edge_constraint(row2, col2, value):
+                    continue
+            
+            if self.check_compatibility(row1, col1, pipe1, row2, col2, value):
+                possible_values.append(value)
+
+        return possible_values
+        
+
+    def edge_constraint(self, row: int, col: int, pipe: str):
+
+        ''' Verifica se o pipe em questão respeita as restrições das bordas do tabuleiro '''
+        
+        pipe = self.translate_pipe(pipe)
+
+        # top row
+        if row == 0 and pipe[0]:
+            return False
+        # bottom row
+        if row == self.row_count -1 and pipe[1]:
+            return False
+        # leftmost col
+        if col == 0 and pipe[2]:
+            return False
+        # rightmost col
+        if col == self.col_count - 1 and pipe[3]:
+            return False
+
+        return True
+    
+
+    def points_towards(self, row1: int, col1: int, row2: int, col2: int, pipe1: str ):
+
+        ''' Função que retorna True se o pipe1 aponta para o pipe2 '''
+        
+        relative_pos = (row2-row1, col2 - col1)
+        p1 = self.translate_pipe(pipe1)
+        
+        # UP
+        if relative_pos == (-1, 0) and p1[0]:
+            return True
+        
+        # DOWN
+        elif relative_pos == (1, 0) and p1[1]:
+            return True
+        
+        # LEFT
+        elif relative_pos == (0, -1) and p1[2]:
+            return True
+        
+        # RIGHT
+        elif relative_pos == (0, 1) and p1[3]: 
+            return True
+
+        return False
+    
+
+    def check_compatibility(self, row1: int, col1: int, pipe1: str, row2: int, col2: int, pipe2: str):
+        
+        ''' Verifica se o pipe1 é compatível com o pipe2. A posição do pipe2 em relação ao pipe1 é calculada 
+        e guardada no offset tuple. Retorna True se forem compatíveis e False caso contrário '''
+        
+        p1 = self.translate_pipe(pipe1)
+        p2 = self.translate_pipe(pipe2)    
+
+        pipe1_type = pipe1[0]
+        pipe2_type = pipe2[0]
+
+        # if both don't point to each other
+        if not self.points_towards(row1,col1,row2,col2, pipe1) and not self.points_towards(row2,col2,row1,col1,pipe2):
+            return True
 
         # Two close ended pipes are never compatible
         if pipe1_type == 'F' and pipe2_type == 'F':
             return False
         
-        offset_tuple = (x_offset, y_offset)
+        offset_tuple = (row2-row1, col2-col1)
 
         # UP
         if offset_tuple == (-1,0):
@@ -246,35 +327,193 @@ class Board:
         return False
     
 
-    def get_neighbors(self, row: int, col: int):
-        ''' Retorna uma lista com tuplos com as coordenadas dos pipes vizinhos nas direções em que o pipe tem aberturas '''
+    def board_pre_processing(self):
+
+        ''' Função que faz pré-processamento das bordas do tabuleiro e inicializa o dicionário com as ações possíveis '''
         
-        pipe = self.translate_pipe(row, col)
+        # bottom and top row
+        for col in range(0, self.col_count):
+            top_row = self.board[0,col]
+            bottom_row = self.board[self.row_count - 1, col]
+
+            if col > 0 and col < self.col_count - 1:
+
+                if top_row[0][0] == 'B':
+                    self.board[0, col] = ('BB',1)
+                elif top_row[0][0] == 'L':
+                    self.board[0, col] = ('LH', 1)
+                    
+                if bottom_row[0][0] == 'B':
+                    self.board[self.row_count - 1,col] = ('BC',1)   
+                elif bottom_row[0][0] == 'L':
+                    self.board[self.row_count - 1,col] = ('LH',1)
+                   
+                
+        # left and right columns            
+        for row in range(0, self.row_count):
+            left_col = self.board[row,0]
+            right_col = self.board[row,self.col_count - 1]
+
+            if row > 0 and row < self.row_count -1:
+                
+                if left_col[0][0] == 'B':
+                    self.board[row, 0] = ('BD',1)
+                elif left_col[0][0] == 'L':
+                    self.board[row, 0] = ('LV',1)
+                
+                if right_col[0][0] == 'B':
+                    self.board[row, self.col_count - 1] = ('BE',1)
+                elif right_col[0][0] == 'L':
+                    self.board[row, self.col_count - 1] = ('LV',1)
         
-        neighbours = []
+        self.fix_corners()
 
-        if pipe[0] and row - 1 >= 0:
-            neighbours.append((row - 1, col))
-           
+        self.next_actions = OrderedDict()
+        edge_coordinates = self.iterate_outer_border()
 
-        if pipe[1] and row + 1 < self.row_count:
-            neighbours.append((row + 1, col))
+        # iterates over the outer edge
+        for (row1,col1) in edge_coordinates:
+            
+            # if pipe is optimal and has not optimal adjacent pipes get actions for those adjacent pipes
+            if self.board[row1, col1][1] == 1:
+                    suboptimal_adjacent = self.get_suboptimal_adjacents(row1, col1, self.board[row1,col1][0])
+                    if not suboptimal_adjacent:
+                        continue
 
-        if pipe[2] and col - 1 >= 0:
-            neighbours.append((row, col - 1))
+                    # for each adjacent non optimal pipe we get its possible values and append to the list
+                    for (adj_row, adj_col) in suboptimal_adjacent:
+                        if (adj_row, adj_col) not in self.next_actions:
+                            self.next_actions[(adj_row, adj_col)] = set()
+                        
+                        possible_values = self.get_possible_values(row1, col1, self.board[row1, col1][0], adj_row, adj_col)
+                          
+                        for pipe in possible_values:
+                            self.next_actions[(adj_row,adj_col)].add((pipe))
+                                                   
+        return self
 
-        if pipe[3] and col + 1 < self.col_count:
-            neighbours.append((row, col + 1))
 
-        return neighbours
+    def propagate_constraints(self):
 
+        ''' Função que propaga restrições no tabuleiro. Para cada peça ótima no tabuleiro, olha para as adjacentes e vê os valores possíveis localmente. '''
+        
+        past_iteration = set()
+        current_iteration = set()
+        current_iteration.add(0)
+        
+        # if these two lists are equal, then we have reached a point where we didn't infer anything on the board
+        while(past_iteration != current_iteration):
 
-    def is_neighbor(self, row: int, col: int, neighbor_row: int, neighbor_col: int):
+            past_iteration = current_iteration.copy()
+            
+            # current iteration stores the coordinates of the pipes we could not infer anything on
+            current_iteration = set()
 
-        neighbours = self.get_neighbors(row,col)
+            # iterate through board in spirals
+            for (row,col) in self.spiral_order:
+ 
+                # if we already have one possible value on the dictionary, we apply it and remove the entry
+                if self.next_actions.get((row,col)) and len(self.next_actions.get((row, col))) == 1:
+                    self.board[row,col][0] =  next(iter(self.next_actions[(row,col)]))
+                    self.board[row,col][1] = 1
+                    del self.next_actions[(row,col)]
+                    continue
 
-        return (neighbor_row,neighbor_col) in neighbours
+                # if the pipe is optimal
+                if self.board[row, col][1] == 1:
+                    
+                    # if it has adjacent pipes that are not optimal we try to infer something
+                    suboptimal_adjacent = self.get_suboptimal_adjacents(row, col, self.board[row,col][0])
+                    if not suboptimal_adjacent:
+                        continue
+                    
+                    for (adj_row, adj_col) in suboptimal_adjacent:
+
+                        
+                        possible_values = self.get_possible_values(row, col, self.board[row, col][0], adj_row, adj_col)
+                        
+                        # if there is only one possible value we apply it and consider the pipe optimal
+                        if len(possible_values) == 1:
+                            self.board[adj_row,adj_col][0] = possible_values[0]
+                            self.board[adj_row,adj_col][1] = 1
+                            if self.next_actions.get((adj_row, adj_col)):
+                                del self.next_actions[(adj_row,adj_col)]
+                       
+                        # if there is more than one possible value we intersect them with the possible values already stored
+                        else:
+
+                            if not self.next_actions.get((adj_row, adj_col)):
+                                self.next_actions[(adj_row,adj_col)]  = set(possible_values)
+                            else:
+                                self.next_actions[(adj_row, adj_col)] = set(possible_values) & self.next_actions[(adj_row, adj_col)]
+
+                            current_iteration.add((adj_row,adj_col))
+                
+            if not current_iteration:
+                break
+
+        if self.optimal == self.board_size:
+            return self.board
+            
+        return self.board            
+                        
+
+    def fix_corners(self):
+
+        if self.board[0,0][0][0] == 'V':
+            self.board[0,0] = ('VB',1)
+        if self.board[0,self.col_count-1][0][0] == 'V':
+            self.board[0,self.col_count-1] = ('VE',1)
+        if self.board[self.row_count-1,0][0][0] == 'V':
+            self.board[self.row_count-1,0] = ('VD',1)
+        if self.board[self.row_count-1,self.col_count-1][0][0] == 'V':
+            self.board[self.row_count-1,self.col_count-1] = ('VC',1)
+        
+        return self
     
+
+
+    def iterate_borders(self):
+        rows, cols = self.row_count, self.col_count
+        coordinates = []
+        for layer in range((min(rows, cols) + 1) // 2):
+            # Iterate over the top border
+            for col in range(layer, cols - layer):
+                coordinates.append((layer, col))
+            # Iterate over the right border
+            for row in range(layer + 1, rows - layer):
+                coordinates.append((row, cols - layer - 1))
+            # Iterate over the bottom border
+            for col in range(cols - layer - 2, layer - 1, -1):
+                coordinates.append((rows - layer - 1, col))
+            # Iterate over the left border
+            for row in range(rows - layer - 2, layer, -1):
+                coordinates.append((row, layer))
+
+        return coordinates
+    
+
+    def iterate_outer_border(self):
+        rows, cols = self.row_count, self.col_count
+        coordinates = []
+        layer = 0  # Only consider the outermost layer
+
+        # Iterate over the top border
+        for col in range(layer, cols - layer):
+            coordinates.append((layer, col))
+        # Iterate over the right border
+        for row in range(layer + 1, rows - layer):
+            coordinates.append((row, cols - layer - 1))
+        # Iterate over the bottom border
+        for col in range(cols - layer - 2, layer - 1, -1):
+            coordinates.append((rows - layer - 1, col))
+        # Iterate over the left border
+        for row in range(rows - layer - 2, layer, -1):
+            coordinates.append((row, layer))
+
+        return coordinates
+
+
     def get_total_pipe_ends(self):
         ''' Retorna o número de pipe ends no tabuleiro. '''
 
@@ -296,298 +535,6 @@ class Board:
         return pipe_ends
 
 
-    def initialize_domains1(self):
-
-        domain = [[[] for _ in range(self.col_count)] for _ in range(self.row_count)]
-
-        for i in range(0,self.row_count):
-            for j in range(0, self.col_count):
-
-                pipe_type = self.board[i][j][0]
-
-                if pipe_type == 'F':
-                    domain[i][j] = ['FC','FB','FE','FD']
-                if pipe_type == 'V':
-                    domain[i][j] = ['VC','VB','VE','VD']
-                if pipe_type == 'B':
-                    domain[i][j] = ['BC','BB','BE','BD']
-                if pipe_type == 'L':
-                    domain[i][j] = ['LH','LV']
-                
-        return domain
-
-    def edge_constraint(self, row: int, col: int):
-
-        ''' Verifica se o pipe em questão respeita as restrições das bordas do tabuleiro '''
-        
-        pipe = self.translate_pipe(row, col)
-
-        # top row
-        if row == 0 and pipe[0]:
-            return False
-        # bottom row
-        if row == self.row_count -1 and pipe[1]:
-            return False
-        # leftmost col
-        if col == 0 and pipe[2]:
-            return False
-        # rightmost col
-        if col == self.col_count - 1 and pipe[3]:
-            return False
-
-        return True
-
-
-    def initialize_domains(self):
-
-        domain = [[[] for _ in range(self.col_count)] for _ in range(self.row_count)]
-
-        for i in range(0,self.row_count):
-            for j in range(0, self.col_count):
-
-                pipe_type = self.board[i][j][0]
-
-                if pipe_type == 'F':
-
-                    if (i,j) == (0,0):
-                        domain[i][j] = ['FB','FD']
-                    elif (i,j) == (0,self.col_count-1):
-                        domain[i][j] = ['FB','FE']
-                    elif (i,j) == (self.row_count-1,0):
-                        domain[i][j] = ['FC','FD']
-                    elif (i,j) == (self.row_count-1,self.col_count-1):
-                        domain[i][j] = ['FC','FE']
-                    elif i == 0:
-                        domain[i][j] = ['FB','FE','FD']
-                    elif i == self.row_count-1:
-                        domain[i][j] = ['FC','FE','FD']
-                    elif j == 0:
-                        domain[i][j] = ['FB','FC','FD']
-                    elif j == self.col_count-1:
-                        domain[i][j] = ['FB','FC','FE'] 
-                    else:
-                        domain[i][j] = ['FC','FB','FE','FD']
-                
-                if pipe_type == 'V':
-
-                    if (i,j) == (0,0):
-                        domain[i][j] = ['VB']
-                    elif (i,j) == (0,self.col_count-1):
-                        domain[i][j] = ['VE']
-                    elif (i,j) == (self.row_count-1,0):
-                        domain[i][j] = ['VD']
-                    elif (i,j) == (self.row_count-1,self.col_count-1):
-                        domain[i][j] = ['VC']
-                    elif i == 0:
-                        domain[i][j] = ['VB','VE']
-                    elif i == self.row_count-1:
-                        domain[i][j] = ['VC','VD']
-                    elif j == 0:
-                        domain[i][j] = ['VB','VD']
-                    elif j == self.col_count-1:
-                        domain[i][j] = ['VE','VC']
-                    else:
-                        domain[i][j] = ['VC','VB','VE','VD']
-                    
-                if pipe_type == 'B':
-                    
-                    if i == 0:
-                        domain[i][j] = ['BB']
-                    elif i == self.row_count-1:
-                        domain[i][j] = ['BC']
-                    elif j == 0:
-                        domain[i][j] = ['BD']
-                    elif j == self.col_count-1:
-                        domain[i][j] = ['BE']
-                    else:
-                        domain[i][j] = ['BC','BB','BE','BD']
-
-                if pipe_type == 'L':
-                    
-                    if i == 0:
-                        domain[i][j] = ['LH']
-                    elif i == self.row_count-1:
-                        domain[i][j] = ['LH']
-                    elif j == 0:
-                        domain[i][j] = ['LV']
-                    elif j == self.col_count-1:
-                        domain[i][j] = ['LV']
-                    else:
-                        domain[i][j] = ['LH','LV']
-                
-                self.board[i][j] = domain[i][j][0]
-
-        return domain
-
-    def edge_constraint(self, row: int, col: int):
-
-        ''' Verifica se o pipe em questão respeita as restrições das bordas do tabuleiro '''
-        
-        pipe = self.translate_pipe(row, col)
-
-        # top row
-        if row == 0 and pipe[0]:
-            return False
-        # bottom row
-        if row == self.row_count -1 and pipe[1]:
-            return False
-        # leftmost col
-        if col == 0 and pipe[2]:
-            return False
-        # rightmost col
-        if col == self.col_count - 1 and pipe[3]:
-            return False
-
-        return True
-    
-
-    def corner_constraints(self, row: int, col:int):
-
-        ''' Verifica se o pipe em questão respeita as restrições nos cantos do tabuleiro '''
-        pipe = self.translate_pipe(row,col)
-        
-        pipe_type = self.board[row][col][0]
-
-        if pipe_type not in ('F','V'):
-            return False
-
-        # top left 
-        if (row,col) == (0,0) and (pipe[0] or pipe[2]):
-            return False
-
-        # top right
-        if (row,col) == (0,self.col_count-1) and (pipe[0] or pipe[3]):
-            return False
-
-        # bottom left
-        if (row, col) == (self.row_count-1,0) and (pipe[1] or pipe[2]):
-            return False
-        
-        # bottom right
-        if (row,col) == (self.row_count-1, self.col_count-1) and (pipe[1] or pipe[3]):
-            return False
-        
-        return True
-
-
-    def initialize_queue(self):
-        ''' Inicializa a queue com todos os pares de variáveis para o algortimo AC3.'''
-        queue = set()  
-        for row in range(self.row_count):
-            for col in range(self.col_count):
-                for pipe in self.domain[row][col]:
-                    self.set_pipe(row, col, pipe)
-                    neighbours = self.get_neighbors(row, col)  
-                    for neighbour in neighbours:
-                        pair = (row, col, neighbour[0], neighbour[1])
-                        queue.add(pair)  
-        return list(queue)  
-
-
-    def ac3(self):
-        ''' Algoritmo AC-3 que garante consistência entre arcos, permitindo um pruning dos domínios das variáveis. '''
-        while self.queue:
-            row, col, neighbour_row, neighbour_col = self.queue.pop(0)
-        
-            if self.revise(row, col, neighbour_row, neighbour_col):
-                if len(self.domain[row][col]) == 0:
-                    return False
-                self.force_action(row,col)
-                for neighbour in self.get_neighbors(row, col):
-                    if neighbour != (neighbour_row, neighbour_col):
-                        self.queue.append((row, col, neighbour[0], neighbour[1]))
-        return True
-
-
-
-    def revise(self, row, col, neighbour_row, neighbour_col):
-        ''' Function responsible for checking constraints on pipes and removing them from domains if they do not satisfy the constraints. '''
-        revised = False
-        
-        domain_copy = self.domain[row][col][:]
-
-        for pipe1 in domain_copy:
-            self.board[row][col] = pipe1
-            constraint_succeeded = False
-            for pipe2 in self.domain[neighbour_row][neighbour_col]:
-                self.board[neighbour_row][neighbour_col] = pipe2
-                if self.is_neighbor(row, col, neighbour_row, neighbour_col):
-                    if self.check_constraints(row, col, neighbour_row , neighbour_col):
-                        constraint_succeeded = True
-                        break
-                else:
-                    # checks if every value in pipe2 domain needs connection with pipe1's position
-                    if self.needs_connection(row, col, neighbour_row, neighbour_col):
-                        constraint_succeeded = False   # the pipes are not neigbours and pipe2 needs a connection at position (row,col). we can remove pipe1
-                    else:
-                        constraint_succeeded = True    # if the connection is not strictly necessary we can't remove pipe1
-            if not constraint_succeeded:
-                self.domain[row][col].remove(pipe1)
-                revised = True
-                    
-        return revised
-
-
-
-    def needs_connection(self, row: int, col: int, neighbour_row: int, neighbour_col: int):
-        '''Função que verifica se os valores no domínio do pipe vizinho precisam de ligação vindo da direção do pipe com coordenadas (row,col).
-        Se todos precisarem e o pipe com coordenadas (row,col) não garantir essa ligação, então podemos removê-lo do domínio'''
-
-        relative_pos = (row - neighbour_row, col - neighbour_col)
-
-        # UP
-        if relative_pos == (-1, 0):
-            for pipe in self.domain[neighbour_row][neighbour_col]:
-                p = self.translate_pipe_no_coordinates(pipe)
-                if not p[0]:
-                    return False
-            return True
-
-        # DOWN
-        elif relative_pos == (1, 0):
-            for pipe in self.domain[neighbour_row][neighbour_col]:
-                p = self.translate_pipe_no_coordinates(pipe)
-                if not p[1]:
-                    return False
-            return True
-
-        # LEFT
-        elif relative_pos == (0, -1):
-            for pipe in self.domain[neighbour_row][neighbour_col]:
-                p = self.translate_pipe_no_coordinates(pipe)
-                if not p[2]:
-                    return False
-            return True
-
-        # RIGHT
-        elif relative_pos == (0, 1):
-            for pipe in self.domain[neighbour_row][neighbour_col]:
-                p = self.translate_pipe_no_coordinates(pipe)
-                if not p[3]:
-                    return False
-            return True
-
-        return False
-
-
-    def force_action(self, row: int, col: int):
-        ''' Função que aplica a ação para peças que têm apenas um possível valor. '''
-        self.board[row][col] = self.domain[row][col][0]
-
-        return self
-    
-    def set_pipe(self, row: int, col: int, pipe: str):
-
-        ''' Função que coloca um determinado pipe numa determinada posição do tabuleiro '''
-        self.board[row][col] = pipe
-
-        return self
-
-    def check_constraints(self, row: int, col: int, neighbour_row: int, neighbour_col: int):
-        return self.check_compatibility(row, col, neighbour_row-row, neighbour_col-col)
-        
-
-
 class PipeMania(Problem):
     def __init__(self, board: Board):
         """O construtor especifica o estado inicial."""
@@ -596,29 +543,46 @@ class PipeMania(Problem):
 
     def actions(self, state: PipeManiaState):
         """Retorna uma lista de ações que podem ser executadas a
-        partir do estado passado como argumento e faz pre-pruning em ações de pipes que estão nas bordas do puzzle."""
-        
+        partir do estado passado como argumento e faz pruning a ações que não respeitam as constraints."""
+
         actions = []
 
-        for i in range(0,state.board.row_count):
-            for j in range(0, state.board.col_count):
+        # if dictionary empty return empty list
+        if not state.board.next_actions:
+            return actions
+        
+        # sort dictionary by number of possible actions per coordinate
+        state.board.next_actions = OrderedDict(sorted(state.board.next_actions.items(), key=lambda item: len(item[1])))
+        
+        copy = deepcopy(state.board.next_actions)
 
-                if len(state.board.domain[i][j]) == 1:
-                    continue
+        (key, val) = next(iter(state.board.next_actions.items()))
 
-                for value in state.board.domain[i][j]:
+        row = key[0] 
+        col = key[1] 
 
-                    if value != state.board.board[i][j]:
-                        actions.append((i,j,value[1]))
-                
-                #print(f"Peça {state.board.board[i][j]} com coordenadas {i},{j} e temos {len(actions)} ações possíveis: ")
-                #for l in actions:
-                    #print(l)
+        possible_actions = val
+
+        # if the set has length one, actions is optimal
+        if(len(possible_actions) == 1):
+            actions.append((row,col,next(iter(state.board.next_actions[(row,col)]))))
+            del copy[(row,col)]
+                  
+        else:
+            val_list = list(val)
+            for pipe in val_list:
+                actions.append((row,col,pipe))
+            
+            del copy[(row,col)]
+            
+        # update board dictionary
+        state.board.next_actions = copy 
 
         return actions
 
-
+        
     def result(self, state: PipeManiaState, action):
+        
         """Retorna o estado resultante de executar a 'action' sobre
         'state' passado como argumento. A ação a executar deve ser uma
         das presentes na lista obtida pela execução de
@@ -626,63 +590,94 @@ class PipeMania(Problem):
 
         new_board = deepcopy(state.board)
 
-        pipe_x, pipe_y, new_orientation = action
+        row, col, new_orientation = action
+        new_board.board[row,col] = (new_orientation, 1)
 
-        pipe_type = new_board.board[pipe_x][pipe_y][0]
-        updated_pipe = pipe_type + new_orientation
-        new_board.board[pipe_x][pipe_y] = updated_pipe
+        adjacents = new_board.get_suboptimal_adjacents(row, col, new_board.board[row,col][0])
 
+        if adjacents:
+
+            for (adj_row,adj_col) in adjacents:
+
+                possible_values = new_board.get_possible_values(row,col, new_board.board[row,col][0], adj_row, adj_col)
+                
+                if not new_board.next_actions.get((adj_row,adj_col)):
+                    new_board.next_actions[(adj_row,adj_col)] = set(possible_values)
+                else:
+                    new_board.next_actions[(adj_row, adj_col)] = set(possible_values) & new_board.next_actions[(adj_row, adj_col)]
+
+                    
         return PipeManiaState(new_board)
+    
 
 
     def goal_test(self, state: PipeManiaState):
         """Retorna True se e só se o estado passado como argumento é
         um estado objetivo. Deve verificar se todas as posições do tabuleiro
         estão preenchidas de acordo com as regras do problema."""
+  
+        visited = [[False] * state.board.col_count for _ in range(state.board.row_count)]
+         
+        if not visited[0][0]:
+            
+            cluster_size = self.bfs(state, visited, 0, 0)
+            
+            # Not goal state if cluster is smaller than the board
+            if cluster_size < state.board.board_size:
+                return False  
         
-        board = state.board
-        all_connected = all(board.is_connected(i, j)[0] for i in range(board.row_count) for j in range(board.col_count))
+        return True
+    
 
-        return all_connected
+    def bfs(self, state: PipeManiaState, visited, row, col):
+    
+        queue = deque([(row, col)])
+        visited[row][col] = True
+        cluster_size = 1  
+
+        while queue:
+            row1,col1 = queue.popleft()
+            neighbors = state.board.get_neighbors(row1,col1,state.board.board[row1,col1][0])
+            for n_row, n_col in neighbors:
+                
+                # Check if neighbor is within bounds and unvisited
+                if 0 <= n_row < state.board.row_count and 0 <= n_col < state.board.col_count and not visited[n_row][n_col]:
+                    if state.board.is_connected(n_row, n_col, state.board.board[n_row, n_col][0])[0]:
+                        visited[n_row][n_col] = True
+                        queue.append((n_row, n_col))
+                        cluster_size += 1
+                    else:
+                        return 0
+            
+        return cluster_size
 
 
     def h(self, node: Node):
         """Função heuristica utilizada para a procura A*. Retorna número de pipe ends desconectadas"""
 
         board = node.state.board
-        connected_pipe_ends = sum(board.is_connected(i, j)[1] for i in range(board.row_count) for j in range(board.col_count))
+        connected_pipe_ends = sum(board.is_connected(i, j, board.board[i,j][0])[1] for i in range(board.row_count) for j in range(board.col_count))
     
         return board.total_pipe_ends - connected_pipe_ends
 
-    # TODO: outros metodos da classe
-
-
+    
 
 if __name__ == "__main__":
     
     input_board = Board.parse_instance() 
 
-    arc_consistency = input_board.ac3()
+    input_board.board_pre_processing()
+    input_board.board = input_board.propagate_constraints()
 
-    if arc_consistency == False:
-       print("There is no solution to this problem")
-       exit(1)
+    problem = PipeMania(input_board)
 
-#visualizer(input_board.board, None)#visualizer(input_board.board, None)    
-    input_board.print_board_with_colors()
+    solution =  depth_limited_search(problem, input_board.board_size)
     
-    #visualizer(input_board.board, None)
-
-    #input_board.fix_edges()
-
-    
-    #visualizer(input_board.board, None)
-    
-    #problem = PipeMania(input_board)
-    #solution = astar_search(problem)
-    #if solution is not None:
-        #print("Solution: ")
-     #   solution.state.board.print_board()
+    if solution is not None:
+        solution.state.board.print_board()
+        visualizer(solution.state.board.board, None)
+    else:
+        print("a solution deu none")
 
 
     

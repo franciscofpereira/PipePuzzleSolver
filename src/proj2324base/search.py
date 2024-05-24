@@ -8,13 +8,7 @@ functions.
 
 import sys
 from collections import deque
-sys.path.append('/home/francisco/Documents/ProjetoIA/src/')
-from Visualizador.visualizer2 import visualizer
-
-
-
 from utils import *
-
 
 
 class Problem:
@@ -280,7 +274,7 @@ def best_first_graph_search(problem, f, display=False):
     while frontier:
         node = frontier.pop()
       
-        node.state.board.print_board_with_colors()
+        #node.state.board.print_board_with_colors()
         parent_state = node.parent.state.board.board if node.parent is not None else None
         
         if problem.goal_test(node.state):
@@ -314,6 +308,7 @@ def depth_limited_search(problem, limit=50):
         else:
             cutoff_occurred = False
             for child in node.expand(problem):
+                node.state.board.print_board_with_colors()
                 result = recursive_dls(child, problem, limit - 1)
                 if result == 'cutoff':
                     cutoff_occurred = True
