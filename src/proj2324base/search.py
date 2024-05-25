@@ -9,6 +9,7 @@ functions.
 import sys
 from collections import deque
 from utils import *
+import time
 
 
 class Problem:
@@ -308,6 +309,8 @@ def depth_limited_search(problem, limit=50):
         else:
             cutoff_occurred = False
             for child in node.expand(problem):
+                #time.sleep(0.05)
+                os.system("clear")
                 node.state.board.print_board_with_colors()
                 result = recursive_dls(child, problem, limit - 1)
                 if result == 'cutoff':

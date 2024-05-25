@@ -126,7 +126,7 @@ class Board:
                     print()  
                 else:
                     print('\t', end='')
-        print()
+        
 
     def get_domain(self, row: int, col: int):
         pipe_type = self.board[row,col][0][0]
@@ -674,7 +674,8 @@ if __name__ == "__main__":
     solution =  depth_limited_search(problem, input_board.board_size)
     
     if solution is not None:
-        solution.state.board.print_board()
+        os.system("clear")
+        solution.state.board.print_board_with_colors()
         visualizer(solution.state.board.board, None)
     else:
         print("a solution deu none")
