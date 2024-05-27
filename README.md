@@ -2,8 +2,8 @@
 
 - This AI agent is capable of solving pipe puzzles. The objective is to connect all of the pipes in order to allow for the flow of water and avoid water leaks.
 
-- You can find similar puzzles here: https://hexapipes.vercel.app/square/5
-c
+- You can find similar puzzles here: `https://hexapipes.vercel.app/square/5`
+
 - Once the AI agent finds the solution, a window pops up with a visualizer of the solved puzzle.
 
 
@@ -22,4 +22,4 @@ https://github.com/franciscofpereira/PipePuzzleSolver/assets/147160910/4dad0ef9-
 
 - When selecting the next action to perform we used the Most Constrained Variable (MCV) in order to choose the variables with the least possible values.
 
-- Refer to <solution_presentation.pdf> in the <src> directory for more details on the employed strategy.
+- Refer to `solution_presentation.pdf` in the `src` directory for more details on the employed strategy.
