@@ -10,5 +10,5 @@
 
 # Visualization of search
 
-https://github.com/franciscofpereira/PipePuzzleSolver/assets/147160910/9df88f91-5e26-4030-bf98-cf7015d1bd13
+https://github.com/franciscofpereira/PipePuzzleSolver/assets/147160910/4dad0ef9-5b88-4826-9f34-e96172361429
 
