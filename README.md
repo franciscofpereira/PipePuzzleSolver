@@ -23,3 +23,5 @@ https://github.com/franciscofpereira/PipePuzzleSolver/assets/147160910/4dad0ef9-
 - When selecting the next action to perform we used the Most Constrained Variable (MCV) in order to choose the variables with the least possible values.
 
 - Refer to `solution_presentation.pdf` in the `src` directory for more details on the employed strategy.
+
+- Refer to `pipe.py` in the `proj2324base`directory inside `src` for the source code of the AI agent.
