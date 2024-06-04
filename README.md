@@ -1,10 +1,10 @@
 # Pipe Puzzle Solver
 
-- This AI agent is capable of solving pipe puzzles. The objective is to connect all of the pipes in order to allow for the flow of water and avoid water leaks.
+- This AI agent is capable of solving large instances of pipe puzzles. The goal is to connect the pipes in order to allow for the flow of water and avoid water leaks.
 
 - You can find similar puzzles here: https://hexapipes.vercel.app/square/5
 
-- Once the AI agent finds the solution, a window pops up with a visualizer of the solved puzzle.
+- Once the solution is found, a window pops up with a visualizer of the solved puzzle.
 
 
 # Problem Example (3x3)
