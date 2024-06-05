@@ -20,7 +20,7 @@ https://github.com/franciscofpereira/PipePuzzleSolver/assets/147160910/4dad0ef9-
 
 - The problem was solved using a constraint propagation algorithm that prunes out the search space followed by a depth limited first search to generate the state nodes for uncertain actions.
 
-- When selecting the next action to perform we used the Most Constrained Variable (MCV) in order to choose the variables with the least possible values.
+- When selecting the next action to perform we used the Most Constrained Variable (MCV) in order to choose pipes with the least possible options.
 
 - Refer to `solution_presentation.pdf` in the `src` directory for more details on the employed strategy.
 
